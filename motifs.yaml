@@ -1,0 +1,1579 @@
+C100_2x1_bare:
+  orientation: '100'
+  surface_cell_multiple:
+  - 1
+  - 2
+  termination: none
+  coverage_ML: 0.0
+  motif: pi-bonded symmetric dimer
+  status: ideal-constructed
+  source:
+    type: geometric construction
+    bond_lengths: C-H 1.09, C-F 1.36, C-O(ether) 1.43, C=O 1.21, bare dimer 1.37,
+      saturated dimer 1.60 (Angstrom)
+    doi: null
+    functional: null
+    a0_used: null
+  requires_dft_relaxation: true
+  expected_dipole_z: none (nonpolar termination)
+  plane_group_approx: pmm
+  sp2_carbons: dimer pair
+  notes: Bare reconstructed surface; dimer C are sp2-like.
+  status_validation: pass
+  region_atoms:
+  - el: C
+    f:
+    - 1.0
+    - 0.135791
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.5
+    - 0.25
+    z_a0: -0.25
+  - el: C
+    f:
+    - 0.5
+    - 0.0
+    z_a0: -0.5
+  - el: C
+    f:
+    - 1.0
+    - 0.0
+    z_a0: -0.75
+  - el: C
+    f:
+    - 1.0
+    - 0.864209
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.5
+    - 0.75
+    z_a0: -0.25
+  - el: C
+    f:
+    - 0.5
+    - 0.5
+    z_a0: -0.5
+  - el: C
+    f:
+    - 0.0
+    - 0.5
+    z_a0: -0.75
+  bulk_anchor_registry:
+  - - 0.0
+    - 0.25
+  - - 0.0
+    - 0.75
+  bulk_anchor_z_a0: -1.0
+  region_layers: 4
+C100_2x1_H:
+  orientation: '100'
+  surface_cell_multiple:
+  - 1
+  - 2
+  termination: H
+  coverage_ML: 1.0
+  motif: monohydride on symmetric dimer
+  status: ideal-constructed
+  source:
+    type: geometric construction
+    bond_lengths: C-H 1.09, C-F 1.36, C-O(ether) 1.43, C=O 1.21, bare dimer 1.37,
+      saturated dimer 1.60 (Angstrom)
+    doi: null
+    functional: null
+    a0_used: null
+  requires_dft_relaxation: true
+  expected_dipole_z: small, H+ outward (NEA)
+  plane_group_approx: pmm
+  sp2_carbons: none
+  notes: Canonical C(100)-(2x1):H.
+  status_validation: pass
+  region_atoms:
+  - el: C
+    f:
+    - 1.0
+    - 0.158589
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.5
+    - 0.25
+    z_a0: -0.25
+  - el: C
+    f:
+    - 0.5
+    - 0.0
+    z_a0: -0.5
+  - el: C
+    f:
+    - 1.0
+    - 0.0
+    z_a0: -0.75
+  - el: C
+    f:
+    - 0.0
+    - 0.841411
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.5
+    - 0.75
+    z_a0: -0.25
+  - el: C
+    f:
+    - 0.5
+    - 0.5
+    z_a0: -0.5
+  - el: C
+    f:
+    - 0.0
+    - 0.5
+    z_a0: -0.75
+  - el: H
+    f:
+    - 1.0
+    - 0.236521
+    z_a0: 0.285012
+  - el: H
+    f:
+    - 0.0
+    - 0.763479
+    z_a0: 0.285012
+  bulk_anchor_registry:
+  - - 0.0
+    - 0.25
+  - - 0.0
+    - 0.75
+  bulk_anchor_z_a0: -1.0
+  region_layers: 4
+C100_2x1_F:
+  orientation: '100'
+  surface_cell_multiple:
+  - 1
+  - 2
+  termination: F
+  coverage_ML: 1.0
+  motif: monofluoride on symmetric dimer
+  status: ideal-constructed
+  source:
+    type: geometric construction
+    bond_lengths: C-H 1.09, C-F 1.36, C-O(ether) 1.43, C=O 1.21, bare dimer 1.37,
+      saturated dimer 1.60 (Angstrom)
+    doi: null
+    functional: null
+    a0_used: null
+  requires_dft_relaxation: true
+  expected_dipole_z: F- outward (PEA)
+  plane_group_approx: pmm
+  sp2_carbons: none
+  notes: Analog of monohydride; >1 ML difluoride excluded (steric).
+  status_validation: pass
+  region_atoms:
+  - el: C
+    f:
+    - 1.0
+    - 0.158589
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.5
+    - 0.25
+    z_a0: -0.25
+  - el: C
+    f:
+    - 0.5
+    - 0.0
+    z_a0: -0.5
+  - el: C
+    f:
+    - 1.0
+    - 0.0
+    z_a0: -0.75
+  - el: C
+    f:
+    - 0.0
+    - 0.841411
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.5
+    - 0.75
+    z_a0: -0.25
+  - el: C
+    f:
+    - 0.5
+    - 0.5
+    z_a0: -0.5
+  - el: C
+    f:
+    - 0.0
+    - 0.5
+    z_a0: -0.75
+  - el: F
+    f:
+    - 1.0
+    - 0.255825
+    z_a0: 0.355611
+  - el: F
+    f:
+    - 0.0
+    - 0.744175
+    z_a0: 0.355611
+  bulk_anchor_registry:
+  - - 0.0
+    - 0.25
+  - - 0.0
+    - 0.75
+  bulk_anchor_z_a0: -1.0
+  region_layers: 4
+C100_1x1_O_ether:
+  orientation: '100'
+  surface_cell_multiple:
+  - 1
+  - 1
+  termination: O
+  coverage_ML: 1.0
+  motif: C-O-C bridge (ether), reconstruction lifted
+  status: ideal-constructed
+  source:
+    type: geometric construction
+    bond_lengths: C-H 1.09, C-F 1.36, C-O(ether) 1.43, C=O 1.21, bare dimer 1.37,
+      saturated dimer 1.60 (Angstrom)
+    doi: null
+    functional: null
+    a0_used: null
+  requires_dft_relaxation: true
+  expected_dipole_z: moderate, O- outward
+  plane_group_approx: p4m-like
+  sp2_carbons: none
+  notes: Classic ether model (cf. Sque/Jones/Briddon PRB 73, 085313 (2006) for relaxed
+    coords). Ideal geometry is strained (COC angle wide); DFT relaxation pulls surface
+    C together.
+  status_validation: pass
+  region_atoms:
+  - el: C
+    f:
+    - 0.0
+    - 0.5
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.5
+    - 0.5
+    z_a0: -0.25
+  - el: C
+    f:
+    - 0.5
+    - 0.0
+    z_a0: -0.5
+  - el: C
+    f:
+    - 1.0
+    - 0.0
+    z_a0: -0.75
+  - el: O
+    f:
+    - 1.0
+    - 0.0
+    z_a0: 0.188993
+  bulk_anchor_registry:
+  - - 0.0
+    - 0.5
+  bulk_anchor_z_a0: -1.0
+  region_layers: 4
+C100_1x1_O_ketone:
+  orientation: '100'
+  surface_cell_multiple:
+  - 1
+  - 1
+  termination: O
+  coverage_ML: 1.0
+  motif: on-top C=O (ketone), reconstruction lifted
+  status: ideal-constructed
+  source:
+    type: geometric construction
+    bond_lengths: C-H 1.09, C-F 1.36, C-O(ether) 1.43, C=O 1.21, bare dimer 1.37,
+      saturated dimer 1.60 (Angstrom)
+    doi: null
+    functional: null
+    a0_used: null
+  requires_dft_relaxation: true
+  expected_dipole_z: large, C=O dipole
+  plane_group_approx: p4m-like
+  sp2_carbons: all surface C
+  notes: Surface C is sp2; expect distinct electron affinity vs ether (~+3.9 vs
+    ~+2.6 eV) as validation observable.
+  status_validation: pass
+  region_atoms:
+  - el: C
+    f:
+    - 0.0
+    - 0.5
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.5
+    - 0.5
+    z_a0: -0.25
+  - el: C
+    f:
+    - 0.5
+    - 0.0
+    z_a0: -0.5
+  - el: C
+    f:
+    - 1.0
+    - 0.0
+    z_a0: -0.75
+  - el: O
+    f:
+    - 0.0
+    - 0.5
+    z_a0: 0.339221
+  bulk_anchor_registry:
+  - - 0.0
+    - 0.5
+  bulk_anchor_z_a0: -1.0
+  region_layers: 4
+C111_1x1_bare:
+  orientation: '111'
+  surface_cell_multiple:
+  - 1
+  - 1
+  termination: none
+  coverage_ML: 0.0
+  motif: bulk-truncated SDB face (reference only)
+  status: ideal-constructed
+  source:
+    type: geometric construction
+    bond_lengths: C-H 1.09, C-F 1.36, C-O(ether) 1.43, C=O 1.21, bare dimer 1.37,
+      saturated dimer 1.60 (Angstrom)
+    doi: null
+    functional: null
+    a0_used: null
+  requires_dft_relaxation: true
+  expected_dipole_z: none
+  plane_group_approx: p3m1
+  sp2_carbons: none
+  notes: Real bare (111) reconstructs to Pandey 2x1; this entry is the unreconstructed
+    reference.
+  status_validation: pass
+  region_atoms:
+  - el: C
+    f:
+    - 0.333333
+    - 0.333333
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.666667
+    - 0.666667
+    z_a0: -0.144338
+  - el: C
+    f:
+    - 0.666667
+    - 0.666667
+    z_a0: -0.57735
+  - el: C
+    f:
+    - 0.0
+    - 0.0
+    z_a0: -0.721688
+  bulk_anchor_registry:
+  - - 1.0
+    - 1.0
+  bulk_anchor_z_a0: -1.154752
+  region_layers: 4
+C111_1x1_H:
+  orientation: '111'
+  surface_cell_multiple:
+  - 1
+  - 1
+  termination: H
+  coverage_ML: 1.0
+  motif: on-top C-H, SDB face
+  status: ideal-constructed
+  source:
+    type: geometric construction
+    bond_lengths: C-H 1.09, C-F 1.36, C-O(ether) 1.43, C=O 1.21, bare dimer 1.37,
+      saturated dimer 1.60 (Angstrom)
+    doi: null
+    functional: null
+    a0_used: null
+  requires_dft_relaxation: true
+  expected_dipole_z: small, H+ outward (NEA)
+  plane_group_approx: p3m1
+  sp2_carbons: none
+  notes: Canonical NEA surface; full coverage implies de-reconstruction from Pandey
+    2x1.
+  status_validation: pass
+  region_atoms:
+  - el: C
+    f:
+    - 0.333333
+    - 0.333333
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.666667
+    - 0.666667
+    z_a0: -0.144338
+  - el: C
+    f:
+    - 0.666667
+    - 0.666667
+    z_a0: -0.57735
+  - el: C
+    f:
+    - 0.0
+    - 0.0
+    z_a0: -0.721688
+  - el: H
+    f:
+    - 0.333333
+    - 0.333333
+    z_a0: 0.305579
+  bulk_anchor_registry:
+  - - 1.0
+    - 1.0
+  bulk_anchor_z_a0: -1.154752
+  region_layers: 4
+C111_1x1_F:
+  orientation: '111'
+  surface_cell_multiple:
+  - 1
+  - 1
+  termination: F
+  coverage_ML: 1.0
+  motif: on-top C-F, SDB face
+  status: ideal-constructed
+  source:
+    type: geometric construction
+    bond_lengths: C-H 1.09, C-F 1.36, C-O(ether) 1.43, C=O 1.21, bare dimer 1.37,
+      saturated dimer 1.60 (Angstrom)
+    doi: null
+    functional: null
+    a0_used: null
+  requires_dft_relaxation: true
+  expected_dipole_z: F- outward (PEA)
+  plane_group_approx: p3m1
+  sp2_carbons: none
+  notes: 'Sen et al., J. Mater. Res. 24, 2461 (2009): stable over wider phase space
+    than H.'
+  status_validation: pass
+  region_atoms:
+  - el: C
+    f:
+    - 0.333333
+    - 0.333333
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.666667
+    - 0.666667
+    z_a0: -0.144338
+  - el: C
+    f:
+    - 0.666667
+    - 0.666667
+    z_a0: -0.57735
+  - el: C
+    f:
+    - 0.0
+    - 0.0
+    z_a0: -0.721688
+  - el: F
+    f:
+    - 0.333333
+    - 0.333333
+    z_a0: 0.381273
+  bulk_anchor_registry:
+  - - 1.0
+    - 1.0
+  bulk_anchor_z_a0: -1.154752
+  region_layers: 4
+C111_1x1_O_ketone:
+  orientation: '111'
+  surface_cell_multiple:
+  - 1
+  - 1
+  termination: O
+  coverage_ML: 1.0
+  motif: on-top C=O, SDB face
+  status: ideal-constructed
+  source:
+    type: geometric construction
+    bond_lengths: C-H 1.09, C-F 1.36, C-O(ether) 1.43, C=O 1.21, bare dimer 1.37,
+      saturated dimer 1.60 (Angstrom)
+    doi: null
+    functional: null
+    a0_used: null
+  requires_dft_relaxation: true
+  expected_dipole_z: large, C=O dipole
+  plane_group_approx: p3m1
+  sp2_carbons: all surface C
+  notes: On-top O most favorable on 1x1 (Petrini & Larsson, JPCC 112, 3018 (2008)).
+    NOT the global ground state at 1 ML (see Seiwatz-canted, pending literature).
+  status_validation: pass
+  region_atoms:
+  - el: C
+    f:
+    - 0.333333
+    - 0.333333
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.666667
+    - 0.666667
+    z_a0: -0.144338
+  - el: C
+    f:
+    - 0.666667
+    - 0.666667
+    z_a0: -0.57735
+  - el: C
+    f:
+    - 0.0
+    - 0.0
+    z_a0: -0.721688
+  - el: O
+    f:
+    - 0.333333
+    - 0.333333
+    z_a0: 0.339221
+  bulk_anchor_registry:
+  - - 1.0
+    - 1.0
+  bulk_anchor_z_a0: -1.154752
+  region_layers: 4
+C110_1x1_bare:
+  orientation: '110'
+  surface_cell_multiple:
+  - 1
+  - 1
+  termination: none
+  coverage_ML: 0.0
+  motif: bulk-truncated zigzag chains; relaxation only
+  status: ideal-constructed
+  source:
+    type: geometric construction
+    bond_lengths: C-H 1.09, C-F 1.36, C-O(ether) 1.43, C=O 1.21, bare dimer 1.37,
+      saturated dimer 1.60 (Angstrom)
+    doi: null
+    functional: null
+    a0_used: null
+  requires_dft_relaxation: true
+  expected_dipole_z: none
+  plane_group_approx: pmg-like
+  sp2_carbons: none
+  notes: No reconstruction observed by LEED.
+  status_validation: pass
+  region_atoms:
+  - el: C
+    f:
+    - 0.5
+    - 0.5
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.0
+    - 0.25
+    z_a0: -0.0
+  - el: C
+    f:
+    - 1.0
+    - 0.0
+    z_a0: -0.353553
+  - el: C
+    f:
+    - 0.5
+    - 0.75
+    z_a0: -0.353553
+  - el: C
+    f:
+    - 0.0
+    - 0.25
+    z_a0: -0.707107
+  - el: C
+    f:
+    - 0.5
+    - 0.5
+    z_a0: -0.707107
+  - el: C
+    f:
+    - 0.5
+    - 0.75
+    z_a0: -1.06066
+  - el: C
+    f:
+    - 1.0
+    - 0.0
+    z_a0: -1.06066
+  bulk_anchor_registry:
+  - - 0.5
+    - 0.5
+  - - 1.0
+    - 0.25
+  bulk_anchor_z_a0: -1.414073
+  region_layers: 4
+C110_1x1_H:
+  orientation: '110'
+  surface_cell_multiple:
+  - 1
+  - 1
+  termination: H
+  coverage_ML: 1.0
+  motif: one H per chain C, along dangling-bond direction
+  status: ideal-constructed
+  source:
+    type: geometric construction
+    bond_lengths: C-H 1.09, C-F 1.36, C-O(ether) 1.43, C=O 1.21, bare dimer 1.37,
+      saturated dimer 1.60 (Angstrom)
+    doi: null
+    functional: null
+    a0_used: null
+  requires_dft_relaxation: true
+  expected_dipole_z: small, H+ outward
+  plane_group_approx: pmg-like
+  sp2_carbons: none
+  notes: NEA surface.
+  status_validation: pass
+  region_atoms:
+  - el: C
+    f:
+    - 0.5
+    - 0.5
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.0
+    - 0.25
+    z_a0: -0.0
+  - el: C
+    f:
+    - 1.0
+    - 0.0
+    z_a0: -0.353553
+  - el: C
+    f:
+    - 0.5
+    - 0.75
+    z_a0: -0.353553
+  - el: C
+    f:
+    - 0.0
+    - 0.25
+    z_a0: -0.707107
+  - el: C
+    f:
+    - 0.5
+    - 0.5
+    z_a0: -0.707107
+  - el: C
+    f:
+    - 0.5
+    - 0.75
+    z_a0: -1.06066
+  - el: C
+    f:
+    - 1.0
+    - 0.0
+    z_a0: -1.06066
+  - el: H
+    f:
+    - 0.5
+    - 0.676426
+    z_a0: 0.249504
+  - el: H
+    f:
+    - 0.0
+    - 0.073574
+    z_a0: 0.249504
+  bulk_anchor_registry:
+  - - 0.5
+    - 0.5
+  - - 1.0
+    - 0.25
+  bulk_anchor_z_a0: -1.414073
+  region_layers: 4
+C110_1x1_F:
+  orientation: '110'
+  surface_cell_multiple:
+  - 1
+  - 1
+  termination: F
+  coverage_ML: 1.0
+  motif: one F per chain C
+  status: ideal-constructed
+  source:
+    type: geometric construction
+    bond_lengths: C-H 1.09, C-F 1.36, C-O(ether) 1.43, C=O 1.21, bare dimer 1.37,
+      saturated dimer 1.60 (Angstrom)
+    doi: null
+    functional: null
+    a0_used: null
+  requires_dft_relaxation: true
+  expected_dipole_z: F- outward
+  plane_group_approx: pmg-like
+  sp2_carbons: none
+  notes: PEA, no in-gap states / surface spins (NV-relevant). Cui et al., Diam.
+    Relat. Mater. (2022).
+  status_validation: pass
+  region_atoms:
+  - el: C
+    f:
+    - 0.5
+    - 0.5
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.0
+    - 0.25
+    z_a0: -0.0
+  - el: C
+    f:
+    - 1.0
+    - 0.0
+    z_a0: -0.353553
+  - el: C
+    f:
+    - 0.5
+    - 0.75
+    z_a0: -0.353553
+  - el: C
+    f:
+    - 0.0
+    - 0.25
+    z_a0: -0.707107
+  - el: C
+    f:
+    - 0.5
+    - 0.5
+    z_a0: -0.707107
+  - el: C
+    f:
+    - 0.5
+    - 0.75
+    z_a0: -1.06066
+  - el: C
+    f:
+    - 1.0
+    - 0.0
+    z_a0: -1.06066
+  - el: F
+    f:
+    - 0.5
+    - 0.720128
+    z_a0: 0.311308
+  - el: F
+    f:
+    - 0.0
+    - 0.029872
+    z_a0: 0.311308
+  bulk_anchor_registry:
+  - - 0.5
+    - 0.5
+  - - 1.0
+    - 0.25
+  bulk_anchor_z_a0: -1.414073
+  region_layers: 4
+C110_O_ether:
+  orientation: '110'
+  surface_cell_multiple:
+  - 1
+  - 2
+  termination: O
+  coverage_ML: all dangling bonds saturated
+  motif: ether bridge between facing chain lobes
+  status: ideal-constructed
+  source:
+    type: geometric construction
+    bond_lengths: C-H 1.09, C-F 1.36, C-O(ether) 1.43, C=O 1.21, bare dimer 1.37,
+      saturated dimer 1.60 (Angstrom)
+    doi: null
+    functional: null
+    a0_used: null
+  requires_dft_relaxation: true
+  expected_dipole_z: moderate
+  plane_group_approx: tbd
+  sp2_carbons: none
+  notes: Full saturation of (110) dangling bonds by INTER-CHAIN C-O-C bridges (facing
+    lobes of adjacent zigzag chains, sep. 2.96 A). Ideal placement is stretched
+    (C-O ~1.52 A); DFT relaxation pulls surface C together. On-top ketone excluded
+    on pristine (110) (needs 2 dangling bonds/C).
+  status_validation: pass
+  region_atoms:
+  - el: C
+    f:
+    - 0.5
+    - 0.25
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.0
+    - 0.125
+    z_a0: -0.0
+  - el: C
+    f:
+    - 1.0
+    - 0.0
+    z_a0: -0.353553
+  - el: C
+    f:
+    - 0.5
+    - 0.375
+    z_a0: -0.353553
+  - el: C
+    f:
+    - 0.0
+    - 0.125
+    z_a0: -0.707107
+  - el: C
+    f:
+    - 0.5
+    - 0.25
+    z_a0: -0.707107
+  - el: C
+    f:
+    - 0.5
+    - 0.375
+    z_a0: -1.06066
+  - el: C
+    f:
+    - 1.0
+    - 0.0
+    z_a0: -1.06066
+  - el: C
+    f:
+    - 0.5
+    - 0.75
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.0
+    - 0.625
+    z_a0: -0.0
+  - el: C
+    f:
+    - 1.0
+    - 0.5
+    z_a0: -0.353553
+  - el: C
+    f:
+    - 0.5
+    - 0.875
+    z_a0: -0.353553
+  - el: C
+    f:
+    - 0.0
+    - 0.625
+    z_a0: -0.707107
+  - el: C
+    f:
+    - 0.5
+    - 0.75
+    z_a0: -0.707107
+  - el: C
+    f:
+    - 0.5
+    - 0.875
+    z_a0: -1.06066
+  - el: C
+    f:
+    - 1.0
+    - 0.5
+    z_a0: -1.06066
+  - el: O
+    f:
+    - 0.25
+    - 0.4375
+    z_a0: 0.140174
+  - el: O
+    f:
+    - 0.25
+    - 0.9375
+    z_a0: 0.140174
+  bulk_anchor_registry:
+  - - 0.5
+    - 0.25
+  - - 0.5
+    - 0.75
+  - - 1.0
+    - 0.125
+  - - 1.0
+    - 0.625
+  bulk_anchor_z_a0: -1.414073
+  region_layers: 4
+C111_3db_2x1_seiwatz:
+  orientation: '111'
+  surface_cell_multiple:
+  - 1
+  - 2
+  termination: none (carbon reconstruction)
+  coverage_ML: 0.0
+  motif: Seiwatz single zig-zag chains on the TDB (glide-plane, 3db) face
+  status: ideal-constructed
+  source:
+    type: geometric construction
+    bond_lengths: C-H 1.09, C-F 1.36, C-O(ether) 1.43, C=O 1.21, bare dimer 1.37,
+      saturated dimer 1.60 (Angstrom)
+    doi: null
+    functional: null
+    a0_used: null
+  requires_dft_relaxation: true
+  expected_dipole_z: none
+  plane_group_approx: pm (chains)
+  sp2_carbons: chain atoms (2 per 2x1)
+  notes: 'Constructed to Kern, Hafner & Kresse, Surf. Sci. 366, 464 (1996) (DFT-LDA):
+    chain bond 1.45 A, buckling 0.07 A, angles 119.4 deg; Erel -1.957 eV/atom. Subsurface
+    bucklings (0.04/0.17/0.07/0.02 A) NOT pre-applied; backbonds carry ~0.15 A construction
+    strain -- requires DFT relaxation. Asymmetric slabs only (SDB bottom), ODD layer
+    counts.'
+  face: TDB
+  tdb_variant: bare
+  layer_parity: odd
+  source_params: Kern-Hafner II (1996)
+  status_validation: pass
+  region_atoms:
+  - el: C
+    f:
+    - 0.165233
+    - 0.334767
+    z_a0: 0.009812
+  - el: C
+    f:
+    - 0.333333
+    - 0.166667
+    z_a0: -0.433013
+  - el: C
+    f:
+    - 0.666667
+    - 0.333333
+    z_a0: -0.57735
+  - el: C
+    f:
+    - 0.501433
+    - 0.498567
+    z_a0: -0.009812
+  - el: C
+    f:
+    - 0.333333
+    - 0.666667
+    z_a0: -0.433013
+  - el: C
+    f:
+    - 0.666667
+    - 0.833333
+    z_a0: -0.57735
+  bulk_anchor_registry:
+  - - 0.666667
+    - 0.333333
+  - - 0.666667
+    - 0.833333
+  bulk_anchor_z_a0: -1.010373
+  region_layers: 4
+C111_3db_2x1_seiwatz_H:
+  orientation: '111'
+  surface_cell_multiple:
+  - 1
+  - 2
+  termination: H
+  coverage_ML: 1.0
+  motif: monohydrogenated Seiwatz chains (TDB face)
+  status: ideal-constructed
+  source:
+    type: geometric construction
+    bond_lengths: C-H 1.09, C-F 1.36, C-O(ether) 1.43, C=O 1.21, bare dimer 1.37,
+      saturated dimer 1.60 (Angstrom)
+    doi: null
+    functional: null
+    a0_used: null
+  requires_dft_relaxation: true
+  expected_dipole_z: none
+  plane_group_approx: pm (chains)
+  sp2_carbons: none
+  notes: 'Constructed to Kern-Hafner II: chain 1.525 A, C-H 1.106 A (built 1.09
+    A standard), buckling removed. Requires DFT relaxation. Asymmetric slabs only,
+    ODD layer counts.'
+  face: TDB
+  tdb_variant: H
+  layer_parity: odd
+  source_params: Kern-Hafner II (1996)
+  status_validation: pass
+  region_atoms:
+  - el: C
+    f:
+    - 0.181468
+    - 0.318532
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.333333
+    - 0.166667
+    z_a0: -0.433013
+  - el: C
+    f:
+    - 0.666667
+    - 0.333333
+    z_a0: -0.57735
+  - el: C
+    f:
+    - 0.666667
+    - 0.333333
+    z_a0: -1.010363
+  - el: C
+    f:
+    - 0.485199
+    - 0.514801
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.333333
+    - 0.666667
+    z_a0: -0.433013
+  - el: C
+    f:
+    - 0.666667
+    - 0.833333
+    z_a0: -0.57735
+  - el: C
+    f:
+    - 0.666667
+    - 0.833333
+    z_a0: -1.010363
+  - el: H
+    f:
+    - 0.336653
+    - 0.163347
+    z_a0: 0.23928
+  - el: H
+    f:
+    - 0.330014
+    - 0.669986
+    z_a0: 0.23928
+  bulk_anchor_registry:
+  - - 0.0
+    - 0.5
+  - - 0.0
+    - 1.0
+  bulk_anchor_z_a0: -1.154752
+  region_layers: 4
+C111_3db_2x1_O_ketone:
+  orientation: '111'
+  surface_cell_multiple:
+  - 1
+  - 2
+  termination: O
+  coverage_ML: 1.0
+  motif: 'Sei-1ML-ketone: Seiwatz chains broken into C2 pairs, each C sp2 with on-top
+    C=O (alpha-diketone-like O=C-C=O units; TDB face)'
+  status: ideal-constructed
+  source:
+    type: geometric construction
+    bond_lengths: C-H 1.09, C-F 1.36, C-O(ether) 1.43, C=O 1.21, bare dimer 1.37,
+      saturated dimer 1.60 (Angstrom)
+    doi: null
+    functional: null
+    a0_used: null
+  requires_dft_relaxation: true
+  expected_dipole_z: small (asymmetric construction)
+  plane_group_approx: pm (chains)
+  sp2_carbons: dimer carbons (2 per 2x1)
+  notes: 'Topology determined from Yang, Gao & Li, Diam. Relat. Mater. 159, 112823
+    (2025), Fig. 6c + text (DOI 10.1016/j.diamond.2025.112823; PBE/VASP, 520 eV):
+    C=O 1.20 A; chains break because a chain C cannot carry 2 chain bonds + backbond
+    + C=O (pentavalent). Dimer C-C built at 1.52 A with along-chain (Peierls-like)
+    dimerization to isolate pairs. Published: Ef -2.23 eV/unit cell, metallic (bands
+    cross E_F), EA +2.54 eV; NOTE paper finds in-gap/spin-polarized character for
+    ketone-type surfaces -- the NV-friendly O/(111) structures are Pan-0.5ML-ether
+    and Cha-0.5ML-ether (0.5 ML, outside full-coverage scope). Requires DFT relaxation.'
+  face: TDB
+  tdb_variant: ketone
+  layer_parity: odd
+  source_params: Yang, Gao & Li, DRM 159, 112823 (2025), Fig. 6c
+  status_validation: pass
+  region_atoms:
+  - el: C
+    f:
+    - 0.325979
+    - 0.26788
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.333333
+    - 0.166667
+    z_a0: -0.433013
+  - el: C
+    f:
+    - 0.666667
+    - 0.333333
+    z_a0: -0.57735
+  - el: C
+    f:
+    - 0.666667
+    - 0.333333
+    z_a0: -1.010363
+  - el: C
+    f:
+    - 0.340688
+    - 0.565454
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.333333
+    - 0.666667
+    z_a0: -0.433013
+  - el: C
+    f:
+    - 0.666667
+    - 0.833333
+    z_a0: -0.57735
+  - el: C
+    f:
+    - 0.666667
+    - 0.833333
+    z_a0: -1.010363
+  - el: O
+    f:
+    - 0.311484
+    - 0.131719
+    z_a0: 0.272064
+  - el: O
+    f:
+    - 0.355182
+    - 0.701614
+    z_a0: 0.272064
+  bulk_anchor_registry:
+  - - 0.0
+    - 0.5
+  - - 0.0
+    - 1.0
+  bulk_anchor_z_a0: -1.154752
+  region_layers: 4
+C100_O_methoxyacetone:
+  status: pending-literature
+  notes: 'Mixed carbonyl+epoxide 1 ML ground state. Source: Lu, Fan, Chen, Mei,
+    Ma & Hu, Carbon 159, 9-15 (2020), DOI 10.1016/j.carbon.2019.12.003 (CITATION
+    CORRECTED from earlier ''Carbon 162, 510-518''). Methods: CALYPSO + VASP/PBE/PAW,
+    600 eV, slab >=8 C layers, O + top 4 layers relaxed, rest fixed. Known metrics:
+    C=O 1.18 A, ether/epoxide C-O 1.45 A, Ef -0.63 eV/(1x1) vs ketone, nearest O-O
+    5 A, gap 5.27 eV (GW), EA +2.54 eV, phonon-stable; Raman 1100 + 550 cm-1. SI
+    checked: figure captions only, NO coordinates. Fig. 1f is a single projection
+    with an adatom-bearing, likely non-stoichiometric top layer -- bond graph NOT
+    safely inferable; request coordinates from authors (huxj@zjut.edu.cn).'
+C111_O_seiwatz_canted:
+  status: pending-literature
+  notes: 'Seiwatz-chain 1 ML canted O ground state (Sei-1ML-canted, surface formation
+    energy -2.64 eV/cell). Source: Yang, Gao & Li, Diam. Relat. Mater. 159, 112823
+    (2025), DOI 10.1016/j.diamond.2025.112823. SI checked: figure captions only,
+    NO coordinates (''data available on request'' -- email gaon@jlu.edu.cn / hdli@jlu.edu.cn).
+    Fig. 6d analysis: polycyclic canted-ribbon structure derived from Sei-0.5ML-canted
+    (dissociated surface-C ribbon) + extra O forming C-O single bonds 1.41-1.51
+    A; C=O 1.20-1.25 A; occluded projections -- bond graph NOT safely inferable.
+    Published: Ef -2.64 eV/unit cell (ground state), gap 1.79 eV with intruding
+    O-derived surface levels (paper deems it NV-unfriendly despite stability). SUBSTRATE
+    NOTE: Seiwatz single chains live on the TDB (glide-plane, 3db) face -- generator
+    currently builds the SDB face only; TDB support required before splicing. Bare-Seiwatz
+    reference parameters (Kern, Hafner & Kresse, Surf. Sci. 366, 464 (1996), DFT-LDA):
+    chain bond 1.45 A, chain buckling 0.07 A, chain angles 119.4 deg, subsurface
+    bucklings 0.04/0.17/0.07/0.02 A, Erel -1.957 eV/atom; monohydrogenated Seiwatz:
+    chain 1.525 A, C-H 1.106 A, buckling removed. Also wanted from SI: Sei-1ML-ketone.'
+C111_2x1_pandey:
+  orientation: '111'
+  surface_cell_multiple: null
+  cell_note: 'rectangular cell: chain period a0/sqrt(2) x perpendicular period;
+    stored frame is the source frame; registry resolved at splice time'
+  cell_A:
+  - - 2.517
+    - 0.0
+  - - 0.0
+    - 4.357
+  termination: none (carbon reconstruction)
+  coverage_ML: 0.0
+  motif: Pandey pi-bonded chain (transcribed; Brenner)
+  status: published-model-coordinates
+  source:
+    type: transcribed published coordinates (Table I)
+    reference: Petukhov, Passerone, Ercolessi, Tosatti, Fasolino, Phys. Rev. B 61
+      (2000); arXiv:cond-mat/0001397
+    method: Brenner empirical potential (param. I), off-lattice GCMC
+    a0_used: 3.55879
+    functional: null
+    relaxed: empirical-potential minimum; NOT DFT-relaxed
+  requires_dft_relaxation: true
+  expected_dipole_z: none (carbon-only termination)
+  plane_group_approx: pm (chains)
+  sp2_carbons: top chain atoms (2 per 2x1)
+  notes: 'Transcribed from Table I. Energy gains (Brenner, eV per 1x1): Pandey 1.102,
+    dimer-2x1 0.883, dimer-4x1 1.023. Region = top 3 bilayers; deeper layers near-bulk.
+    Mis-attribution in earlier catalog draft (Kern-Hafner) corrected: graphitic
+    metastables are due to Petukhov et al. Transcription flag: atom 32 x-coordinate
+    in dimer-2x1 read as 2.251 (vs 2.346 Pandey / 2.361 4x1); bond validation passes
+    as printed.'
+  region_atoms:
+  - el: C
+    f:
+    - 0.625348
+    - 0.703236
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.125149
+    - 0.543952
+    z_a0: -0.001686
+  - el: C
+    f:
+    - 0.124354
+    - 0.231122
+    z_a0: -0.205969
+  - el: C
+    f:
+    - 0.626142
+    - 0.017443
+    z_a0: -0.202597
+  - el: C
+    f:
+    - 0.625745
+    - 0.875832
+    z_a0: -0.618188
+  - el: C
+    f:
+    - 0.125546
+    - 0.697957
+    z_a0: -0.743231
+  - el: C
+    f:
+    - 0.124752
+    - 0.357356
+    z_a0: -0.628023
+  - el: C
+    f:
+    - 0.625348
+    - 0.205417
+    z_a0: -0.783413
+  - el: C
+    f:
+    - 0.125546
+    - 0.703466
+    z_a0: -1.187202
+  - el: C
+    f:
+    - 0.625745
+    - 0.538444
+    z_a0: -1.338939
+  - el: C
+    f:
+    - 0.62495
+    - 0.202662
+    z_a0: -1.207715
+  - el: C
+    f:
+    - 0.125149
+    - 0.034886
+    z_a0: -1.34484
+  region_layers: 6
+  origin: floating (aligned to bulk at splice time)
+  validation_targets:
+    comment: Post-DFT-relaxation acceptance criteria; the two sets agree to ~1%.
+    LEED_Walter2002:
+      reference: 'Walter, Bernhardt, Starke, Heinz, Maier, Ristein, Ley, J. Phys.:
+        Condens. Matter 14, 3085 (2002); Pendry R=0.19'
+      bulk_d0_A: 1.544
+      bulk_db0_A: 0.515
+      d12_A: 1.55
+      d23_A: 1.55
+      d34_A: 1.52
+      db1_A: 0.68
+      db2_A: 0.51
+      db3_A: 0.5
+      db4_A: 0.51
+      buckling_A:
+        b11: 0.01
+        b12: 0.01
+        b21: 0.02
+        b22: 0.18
+        b31: 0.08
+        b32: 0.01
+        b41: 0.01
+        b42: 0.04
+      bonds_A:
+        l12: 1.62
+        l12p: 1.64
+        l23: 1.61
+        l23p: 1.49
+      chain_tilt: untilted (intrachain buckling 0.01 A, error 0.04 A)
+      dimerization_pct: 0.7
+      dimerization_upper_limit_pct: 7.0
+    DFT_KernHafner1996:
+      reference: Kern, Hafner, Kresse, Surf. Sci. 366, 445 (1996), Table 4 + Fig.
+        1; DFT-LDA, a0_calc 3.531 A, bulk bond 1.529 A
+      chain_bond_A: 1.425
+      dimerization_pct: 0.0
+      chain_buckling_A: 0.006
+      d12_pct:
+      - 0.2
+      - -0.2
+      dprime_pct: 0.9
+      d23_pct:
+      - 6.5
+      - 4.6
+      layer_bucklings_A:
+      - 0.01
+      - 0.01
+      - 0.03
+      - 0.17
+      - 0.06
+      - 0.02
+      Erel_2x1_eV_per_atom: -1.375
+C111_2x1_graphitic:
+  orientation: '111'
+  surface_cell_multiple: null
+  cell_note: 'rectangular cell: chain period a0/sqrt(2) x perpendicular period;
+    stored frame is the source frame; registry resolved at splice time'
+  cell_A:
+  - - 2.517
+    - 0.0
+  - - 0.0
+    - 4.357
+  termination: none (carbon reconstruction)
+  coverage_ML: 0.0
+  motif: dimerized lower-chain metastable, threefold 'graphitic' surface (2x1)
+  status: published-model-coordinates
+  source:
+    type: transcribed published coordinates (Table I)
+    reference: Petukhov, Passerone, Ercolessi, Tosatti, Fasolino, Phys. Rev. B 61
+      (2000); arXiv:cond-mat/0001397
+    method: Brenner empirical potential (param. I), off-lattice GCMC
+    a0_used: 3.55879
+    functional: null
+    relaxed: empirical-potential minimum; NOT DFT-relaxed
+  requires_dft_relaxation: true
+  expected_dipole_z: none (carbon-only termination)
+  plane_group_approx: pm (chains)
+  sp2_carbons: all first-bilayer atoms
+  notes: 'Transcribed from Table I. Energy gains (Brenner, eV per 1x1): Pandey 1.102,
+    dimer-2x1 0.883, dimer-4x1 1.023. Region = top 3 bilayers; deeper layers near-bulk.
+    Mis-attribution in earlier catalog draft (Kern-Hafner) corrected: graphitic
+    metastables are due to Petukhov et al. Transcription flag: atom 32 x-coordinate
+    in dimer-2x1 read as 2.251 (vs 2.346 Pandey / 2.361 4x1); bond validation passes
+    as printed.'
+  region_atoms:
+  - el: C
+    f:
+    - 0.625745
+    - 0.704843
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.131903
+    - 0.54005
+    z_a0: -0.003653
+  - el: C
+    f:
+    - 0.235995
+    - 0.27014
+    z_a0: -0.23435
+  - el: C
+    f:
+    - 0.52801
+    - 0.974294
+    z_a0: -0.229854
+  - el: C
+    f:
+    - 0.616607
+    - 0.880193
+    z_a0: -0.648255
+  - el: C
+    f:
+    - 0.118792
+    - 0.703466
+    z_a0: -0.777231
+  - el: C
+    f:
+    - 0.135479
+    - 0.361028
+    z_a0: -0.657808
+  - el: C
+    f:
+    - 0.638458
+    - 0.205646
+    z_a0: -0.808983
+  - el: C
+    f:
+    - 0.126341
+    - 0.705761
+    z_a0: -1.22036
+  - el: C
+    f:
+    - 0.624156
+    - 0.51664
+    z_a0: -1.367882
+  - el: C
+    f:
+    - 0.630513
+    - 0.204039
+    z_a0: -1.235814
+  - el: C
+    f:
+    - 0.130314
+    - 0.035804
+    z_a0: -1.37294
+  region_layers: 6
+  origin: floating (aligned to bulk at splice time)
+C111_4x1_graphitic:
+  orientation: '111'
+  surface_cell_multiple: null
+  cell_note: 'rectangular cell: chain period a0/sqrt(2) x perpendicular period;
+    stored frame is the source frame; registry resolved at splice time'
+  cell_A:
+  - - 2.517
+    - 0.0
+  - - 0.0
+    - 8.714
+  termination: none (carbon reconstruction)
+  coverage_ML: 0.0
+  motif: dimerized lower-chain metastable, threefold 'graphitic' surface (4x1)
+  status: published-model-coordinates
+  source:
+    type: transcribed published coordinates (Table I)
+    reference: Petukhov, Passerone, Ercolessi, Tosatti, Fasolino, Phys. Rev. B 61
+      (2000); arXiv:cond-mat/0001397
+    method: Brenner empirical potential (param. I), off-lattice GCMC
+    a0_used: 3.55879
+    functional: null
+    relaxed: empirical-potential minimum; NOT DFT-relaxed
+  requires_dft_relaxation: true
+  expected_dipole_z: none (carbon-only termination)
+  plane_group_approx: pm (chains)
+  sp2_carbons: all first-bilayer atoms
+  notes: 'Transcribed from Table I. Energy gains (Brenner, eV per 1x1): Pandey 1.102,
+    dimer-2x1 0.883, dimer-4x1 1.023. Region = top 3 bilayers; deeper layers near-bulk.
+    Mis-attribution in earlier catalog draft (Kern-Hafner) corrected: graphitic
+    metastables are due to Petukhov et al. Transcription flag: atom 32 x-coordinate
+    in dimer-2x1 read as 2.251 (vs 2.346 Pandey / 2.361 4x1); bond validation passes
+    as printed.'
+  region_atoms:
+  - el: C
+    f:
+    - 0.788637
+    - 0.352536
+    z_a0: 0.0
+  - el: C
+    f:
+    - 0.461661
+    - 0.853225
+    z_a0: -0.000843
+  - el: C
+    f:
+    - 0.289233
+    - 0.273009
+    z_a0: -0.000562
+  - el: C
+    f:
+    - 0.962257
+    - 0.773697
+    z_a0: -0.001967
+  - el: C
+    f:
+    - 0.283671
+    - 0.138857
+    z_a0: -0.237721
+  - el: C
+    f:
+    - 0.967819
+    - 0.641611
+    z_a0: -0.24025
+  - el: C
+    f:
+    - 0.47358
+    - 0.982672
+    z_a0: -0.234631
+  - el: C
+    f:
+    - 0.777116
+    - 0.485196
+    z_a0: -0.236597
+  - el: C
+    f:
+    - 0.638061
+    - 0.440441
+    z_a0: -0.651346
+  - el: C
+    f:
+    - 0.607072
+    - 0.941244
+    z_a0: -0.65275
+  - el: C
+    f:
+    - 0.139054
+    - 0.352536
+    z_a0: -0.781727
+  - el: C
+    f:
+    - 0.109257
+    - 0.853339
+    z_a0: -0.782851
+  - el: C
+    f:
+    - 0.150179
+    - 0.18235
+    z_a0: -0.656122
+  - el: C
+    f:
+    - 0.099325
+    - 0.68476
+    z_a0: -0.659213
+  - el: C
+    f:
+    - 0.651172
+    - 0.103053
+    z_a0: -0.807579
+  - el: C
+    f:
+    - 0.596742
+    - 0.605003
+    z_a0: -0.809545
+  - el: C
+    f:
+    - 0.12793
+    - 0.353913
+    z_a0: -1.222046
+  - el: C
+    f:
+    - 0.121573
+    - 0.854831
+    z_a0: -1.224294
+  - el: C
+    f:
+    - 0.627334
+    - 0.270943
+    z_a0: -1.370973
+  - el: C
+    f:
+    - 0.62058
+    - 0.771976
+    z_a0: -1.372097
+  - el: C
+    f:
+    - 0.63528
+    - 0.102708
+    z_a0: -1.235252
+  - el: C
+    f:
+    - 0.613031
+    - 0.6042
+    z_a0: -1.236938
+  - el: C
+    f:
+    - 0.135876
+    - 0.018591
+    z_a0: -1.374626
+  - el: C
+    f:
+    - 0.116408
+    - 0.520197
+    z_a0: -1.374626
+  region_layers: 6
+  origin: floating (aligned to bulk at splice time)
