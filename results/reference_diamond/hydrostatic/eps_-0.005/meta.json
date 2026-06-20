@@ -1,0 +1,18 @@
+{
+  "calculation": "scf",
+  "strain_type": "hydrostatic",
+  "epsilon": -0.005,
+  "lattice_constant_angstrom": 3.549165,
+  "functional": "PBE",
+  "pseudopotential": "C.pbe-n-kjpaw_psl.1.0.0.UPF",
+  "pseudo_dir": "./",
+  "ecutwfc_Ry": 80.0,
+  "ecutrho_Ry": 640.0,
+  "kpoints": [
+    8,
+    8,
+    8
+  ],
+  "cell_type": "conventional",
+  "generated_at": "2026-06-20T11:30:26"
+}
