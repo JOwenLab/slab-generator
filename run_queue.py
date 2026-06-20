@@ -131,7 +131,7 @@ def _find_copyable_pseudos(job_dir: Path, pseudo_source: Path) -> tuple:
     return to_copy, still_missing
 
 
-# ── Reference-diamond result copying ─────────────────────────────────────────
+# ── Result copying ────────────────────────────────────────────────────────────
 
 def _is_reference_diamond(job_dir: Path, run_root: Path) -> bool:
     try:
@@ -146,20 +146,48 @@ def _results_dest(job_dir: Path, run_root: Path) -> Path:
     return run_root.parent / "results" / rel
 
 
-def _copy_reference_results(job_dir: Path, run_root: Path) -> tuple:
+def _slab_results_dest(job_dir: Path, run_root: Path) -> Path:
+    """Map runs/<slab_name>/ → results/slabs/<slab_name>/."""
+    return run_root.parent / "results" / "slabs" / job_dir.name
+
+
+def _copy_results(job_dir: Path, dest: Path, force: bool = False) -> tuple:
     """
-    Copy pw.in, pw.out, meta.json from job_dir to the matching results/ folder.
+    Copy pw.in, pw.out, meta.json from job_dir to dest.
+    Skips existing files unless force=True.
     Returns (copied: bool, dest_str: str, note: str).
     """
-    dest = _results_dest(job_dir, run_root)
     candidates = ["pw.in", "pw.out", "meta.json"]
     present = [f for f in candidates if (job_dir / f).exists()]
     if not present:
         return False, "", "nothing to copy"
     dest.mkdir(parents=True, exist_ok=True)
+    copied_files = []
+    skipped_files = []
     for fname in present:
-        shutil.copy2(job_dir / fname, dest / fname)
-    return True, str(dest), f"copied {present} → {dest}"
+        dst_file = dest / fname
+        if dst_file.exists() and not force:
+            skipped_files.append(fname)
+        else:
+            shutil.copy2(job_dir / fname, dst_file)
+            copied_files.append(fname)
+    parts = []
+    if copied_files:
+        parts.append(f"copied {copied_files}")
+    if skipped_files:
+        parts.append(f"skipped existing {skipped_files} (use --force to overwrite)")
+    note = "; ".join(parts) + f" → {dest}"
+    return bool(copied_files or skipped_files), str(dest), note
+
+
+def _copy_reference_results(job_dir: Path, run_root: Path, force: bool = False) -> tuple:
+    dest = _results_dest(job_dir, run_root)
+    return _copy_results(job_dir, dest, force)
+
+
+def _copy_slab_results(job_dir: Path, run_root: Path, force: bool = False) -> tuple:
+    dest = _slab_results_dest(job_dir, run_root)
+    return _copy_results(job_dir, dest, force)
 
 
 # ── Runner ────────────────────────────────────────────────────────────────────
@@ -354,6 +382,9 @@ def main():
             if _is_reference_diamond(job_dir, run_root):
                 dest = _results_dest(job_dir, run_root)
                 note_parts.append(f"would copy results → {dest}")
+            else:
+                dest = _slab_results_dest(job_dir, run_root)
+                note_parts.append(f"would copy slab results → {dest}")
             for n in pseudo_copy_notes:
                 print(f"                    {n}")
             row["action"]       = "would_run"
@@ -382,9 +413,10 @@ def main():
             n_completed += 1
             print(f"  done  ({elapsed:.0f}s, rc={rc})")
 
-            # Copy reference-diamond results and re-parse
+            # Copy results and re-parse if applicable
             if _is_reference_diamond(job_dir, run_root):
-                copied, dest_str, copy_note = _copy_reference_results(job_dir, run_root)
+                copied, dest_str, copy_note = _copy_reference_results(
+                    job_dir, run_root, force=args.force)
                 row["copied_to_results"] = dest_str if copied else ""
                 notes = [copy_note]
                 if copied:
@@ -401,6 +433,13 @@ def main():
                         print(f"  FAILED (rc={parse_rc})")
                         notes.append(f"parse_reference.py exited {parse_rc}")
                 row["notes"] = "; ".join(notes)
+            else:
+                copied, dest_str, copy_note = _copy_slab_results(
+                    job_dir, run_root, force=args.force)
+                row["copied_to_results"] = dest_str if copied else ""
+                if dest_str:
+                    print(f"    → slab results: {dest_str}")
+                row["notes"] = (row.get("notes") or "") + copy_note
         else:
             n_failed += 1
             row["notes"] = f"job did not complete (rc={rc})"
