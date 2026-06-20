@@ -1,0 +1,37 @@
+{
+  "name": "reference_pbe_sssp",
+  "description": "Fitted PBE/SSSP bulk diamond reference from 5-point hydrostatic QE series.",
+  "functional": "PBE",
+  "pseudo_set": "SSSP 1.3.0 Precision",
+  "pseudopotentials": {
+    "C": "C.pbe-n-kjpaw_psl.1.0.0.UPF"
+  },
+  "qe_settings": {
+    "ecutwfc": 80,
+    "ecutrho": 640,
+    "kpoints_bulk": [8, 8, 8],
+    "occupations": "fixed",
+    "tstress": true,
+    "tprnfor": true
+  },
+  "bulk_reference": {
+    "cell_type": "conventional",
+    "nat": 8,
+    "a0_input_angstrom": 3.567,
+    "a0_fit_angstrom": 3.573641,
+    "a0_energy_fit_angstrom": 3.573394,
+    "a0_pressure_fit_angstrom": 3.573882,
+    "epsilon0_energy_fit": 0.0017856646270185638,
+    "epsilon0_pressure_fit": 0.001922336232058496,
+    "bulk_modulus_gpa": 445.116,
+    "fit_status": "consistent",
+    "source_summary_csv": "results/reference_diamond/bulk_fit_summary.csv",
+    "source_summary_json": "results/reference_diamond/bulk_fit_summary.json",
+    "source_report": "results/reference_diamond/bulk_fit_report.md"
+  },
+  "notes": [
+    "Use this fitted lattice constant as the default bulk PBE/SSSP reference for future slab and strain calculations.",
+    "Do not commit UPF pseudopotential files.",
+    "For slab surface-energy subtraction, use strain-matched bulk references rather than only the unstrained reference."
+  ]
+}
