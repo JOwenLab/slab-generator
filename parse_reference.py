@@ -185,7 +185,6 @@ def parse_pw_out(path: Path) -> dict:
         r"Error in routine[^\n]*",
         r"Segmentation fault[^\n]*",
         r"forrtl:[^\n]*",
-        r"floating[- ]point exception[^\n]*",
     ]
     for pat in error_patterns:
         for m in re.finditer(pat, text, re.IGNORECASE):
@@ -207,6 +206,18 @@ def parse_pw_out(path: Path) -> dict:
             if w not in seen_warns:
                 d["warnings"].append(w)
                 seen_warns.add(w)
+
+    # FPE is a benign note in successful runs; treat as error only when JOB DONE is absent
+    for m in re.finditer(r"floating[- ]point exception[^\n]*", text, re.IGNORECASE):
+        msg = m.group(0).strip()[:200]
+        if d["job_done"]:
+            if msg not in seen_warns:
+                d["warnings"].append(msg)
+                seen_warns.add(msg)
+        else:
+            d["errors"].append(msg)
+            if d["status"] == "UNKNOWN":
+                d["status"] = "ERROR"
 
     # ── Calculation type ─────────────────────────────────────────────────
     m = re.search(r"calculation\s*=\s*'([^']+)'", text)

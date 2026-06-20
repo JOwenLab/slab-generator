@@ -109,6 +109,28 @@ def check_pseudos(job_dir: Path) -> tuple:
     return (not missing), missing
 
 
+def _find_copyable_pseudos(job_dir: Path, pseudo_source: Path) -> tuple:
+    """
+    For each UPF missing from job_dir's pseudo_dir, look for it in pseudo_source.
+    Returns (to_copy: list[(src, dst)], still_missing: list[str]).
+    """
+    pw_in = job_dir / "pw.in"
+    pdir  = _resolve_pseudo_dir(pw_in)
+    names = _upf_names_from_pw_in(pw_in)
+    to_copy = []
+    still_missing = []
+    for name in names:
+        dst = pdir / name
+        if dst.exists():
+            continue
+        src = pseudo_source / name
+        if src.exists():
+            to_copy.append((src, dst))
+        else:
+            still_missing.append(str(dst))
+    return to_copy, still_missing
+
+
 # ── Reference-diamond result copying ─────────────────────────────────────────
 
 def _is_reference_diamond(job_dir: Path, run_root: Path) -> bool:
@@ -208,6 +230,11 @@ Examples:
         help="Path to the pw.x executable (default: pw.x).",
     )
     p.add_argument(
+        "--pseudo-source", metavar="DIR",
+        help="Directory containing UPF files; missing pseudos are copied from "
+             "here into each job folder before launching (or dry-run reporting).",
+    )
+    p.add_argument(
         "--force", action="store_true",
         help="Re-run already-completed jobs, overwriting pw.out.",
     )
@@ -279,8 +306,27 @@ def main():
             csv_rows.append(row)
             continue
 
-        # ── Guard: pseudopotentials missing ───────────────────────────────
+        # ── Pseudopotential check (with optional auto-copy) ───────────────
         pseudo_ok, missing_upf = check_pseudos(job_dir)
+        pseudo_copy_notes = []
+
+        if not pseudo_ok and args.pseudo_source:
+            pseudo_source_path = Path(args.pseudo_source).resolve()
+            to_copy, still_missing = _find_copyable_pseudos(job_dir, pseudo_source_path)
+            if to_copy:
+                if dry_run:
+                    for src, dst in to_copy:
+                        pseudo_copy_notes.append(f"would copy {src.name}")
+                    if not still_missing:
+                        pseudo_ok, missing_upf = True, []
+                else:
+                    pdir = _resolve_pseudo_dir(job_dir / "pw.in")
+                    pdir.mkdir(parents=True, exist_ok=True)
+                    for src, dst in to_copy:
+                        shutil.copy2(src, dst)
+                        pseudo_copy_notes.append(f"copied {src.name}")
+                    pseudo_ok, missing_upf = check_pseudos(job_dir)
+
         if not pseudo_ok:
             row["action"]       = "skip_missing_pseudo"
             row["status_after"] = ST_MISSING_PSEUDO
@@ -302,22 +348,27 @@ def main():
 
         # ── Dry run ───────────────────────────────────────────────────────
         if dry_run:
-            note = f"would run: {args.pw_exe} < pw.in > pw.out"
+            print(f"  WOULD RUN         {rel}")
+            note_parts = list(pseudo_copy_notes)
+            note_parts.append(f"would run: {args.pw_exe} < pw.in > pw.out")
             if _is_reference_diamond(job_dir, run_root):
                 dest = _results_dest(job_dir, run_root)
-                note += f"; would copy results → {dest}"
+                note_parts.append(f"would copy results → {dest}")
+            for n in pseudo_copy_notes:
+                print(f"                    {n}")
             row["action"]       = "would_run"
             row["status_after"] = "?"
-            row["notes"]        = note
+            row["notes"]        = "; ".join(note_parts)
             jobs_launched += 1
-            print(f"  WOULD RUN         {rel}")
             csv_rows.append(row)
             continue
 
         # ── Execute ───────────────────────────────────────────────────────
         print(f"  RUNNING           {rel} ...", end="", flush=True)
-        row["action"]     = "run"
+        row["action"]      = "run"
         row["output_path"] = str(job_dir / "pw.out")
+        if pseudo_copy_notes:
+            row["notes"] = "; ".join(pseudo_copy_notes) + "; "
 
         rc, elapsed = run_job(job_dir, args.pw_exe)
         row["return_code"]    = rc
