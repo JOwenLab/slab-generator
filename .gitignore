@@ -1,0 +1,21 @@
+# Quantum ESPRESSO pseudopotentials (large binary files)
+*.UPF
+*.upf
+
+# QE scratch/run directories (not part of the repo)
+runs/
+tmp/
+*/tmp/
+
+# macOS metadata
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Editor
+.vscode/
+*.swp
