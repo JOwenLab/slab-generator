@@ -1,0 +1,2 @@
+series,orientation,termination,formula,strain_mode,n_points,epsilon_min,epsilon_max,stress_slope_kbar_per_eps,stress_intercept_kbar,zero_stress_epsilon,stress_at_zero_kbar,tau_slope_n_per_m_per_eps,tau_intercept_n_per_m,tau_at_zero_n_per_m,r2_stress_fit,fit_status,warnings
+C111_1x1_H_6L,(111),H,C6H,biaxial,5,-0.01,0.01,-3725.8,-1.5719999999999978,-0.00042192280852434316,-1.5719999999999978,-386.22193920335997,-0.16295584530239987,-0.16295584530239987,0.9992420822738498,good,

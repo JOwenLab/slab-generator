@@ -1,0 +1,22 @@
+[
+  {
+    "epsilon_max": 0.01,
+    "epsilon_min": -0.01,
+    "fit_status": "good",
+    "formula": "C6H",
+    "n_points": 5,
+    "orientation": "(111)",
+    "r2_stress_fit": 0.9992420822738498,
+    "series": "C111_1x1_H_6L",
+    "strain_mode": "biaxial",
+    "stress_at_zero_kbar": -1.5719999999999978,
+    "stress_intercept_kbar": -1.5719999999999978,
+    "stress_slope_kbar_per_eps": -3725.8,
+    "tau_at_zero_n_per_m": -0.16295584530239987,
+    "tau_intercept_n_per_m": -0.16295584530239987,
+    "tau_slope_n_per_m_per_eps": -386.22193920335997,
+    "termination": "H",
+    "warnings": "",
+    "zero_stress_epsilon": -0.00042192280852434316
+  }
+]

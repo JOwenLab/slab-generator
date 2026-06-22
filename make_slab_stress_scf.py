@@ -3,13 +3,8 @@
 make_slab_stress_scf.py - Generate stress-only SCF jobs from relaxed slabs.
 
 Reads relaxed slab results from results/slabs/<name>/pw.in and pw.out, extracts
-the final coordinates from pw.out, and writes new QE single-point inputs with:
-
-  calculation = 'scf'
-  tstress = .true.
-  tprnfor = .true.
-
-These jobs are for vacuum-corrected slab stress / lattice-pressure analysis.
+the final coordinates from pw.out, and writes new QE single-point inputs with
+calculation='scf', tstress=.true., and tprnfor=.true.
 """
 
 import argparse
@@ -46,9 +41,8 @@ def extract_final_positions(out_text):
         re.IGNORECASE | re.DOTALL,
     )
     if m:
-        block = m.group(1).strip()
         lines = []
-        for line in block.splitlines():
+        for line in m.group(1).strip().splitlines():
             if line.strip() and not line.lstrip().startswith(("End", "CELL_PARAMETERS")):
                 lines.append(line.rstrip())
         return "\n".join(lines) + "\n"

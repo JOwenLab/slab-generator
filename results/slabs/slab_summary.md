@@ -2,8 +2,8 @@
 
 Parsed completed and available diamond slab Quantum ESPRESSO calculations.
 
-- Slab calculations found: 7
-- Completed: 7
+- Slab calculations found: 12
+- Completed: 12
 - Needs attention: 1
 
 ## Slab Runs
@@ -16,6 +16,11 @@ Parsed completed and available diamond slab Quantum ESPRESSO calculations.
 | C110_1x1_H_6L_SSSP | C12H2 | (110) | H | -223.29801692 | 9.030 | 0.000164 | ok | JOB DONE |
 | C110_1x1_H_6L_SSSP_stress_scf | C12H2 | (110) | H | -223.29801692 | 9.030 | 0.000163 | ok | JOB DONE |
 | C111_1x1_H_6L | C6H | (111) | H | -111.61393168 | 5.530 | 0.000016 | ok | JOB DONE |
+| C111_1x1_H_6L_strain_biaxial_m0p005_scf | C6H | (111) | H | -111.61355343 | 5.475 | 0.001239 | ok | JOB DONE |
+| C111_1x1_H_6L_strain_biaxial_m0p010_scf | C6H | (111) | H | -111.61215978 | 5.420 | 0.002643 | ok | JOB DONE |
+| C111_1x1_H_6L_strain_biaxial_p0p000_scf | C6H | (111) | H | -111.61393168 | 5.530 | 0.000019 | ok | JOB DONE |
+| C111_1x1_H_6L_strain_biaxial_p0p005_scf | C6H | (111) | H | -111.61333022 | 5.585 | 0.001091 | ok | JOB DONE |
+| C111_1x1_H_6L_strain_biaxial_p0p010_scf | C6H | (111) | H | -111.61178470 | 5.641 | 0.002075 | ok | JOB DONE |
 | C111_1x1_H_6L_stress_scf | C6H | (111) | H | -111.61393168 | 5.530 | 0.000019 | ok | JOB DONE |
 
 ## Interpretation Notes

@@ -10,6 +10,11 @@ Important caveat: QE slab stress is averaged over the full vacuum-containing sup
 |---|---:|---:|---:|---:|---:|---:|---:|---|
 | C100_2x1_H_6L_stress_scf | (100) | C12H2 | -6.150 | -72.020 | -39.085 | -4.0031 | 39.085 | compressive_inplane_pressure_like |
 | C110_1x1_H_6L_SSSP_stress_scf | (110) | C12H2 | -22.180 | 5.080 | -8.550 | -0.9494 | 8.550 | compressive_inplane_pressure_like |
+| C111_1x1_H_6L_strain_biaxial_m0p005_scf | (111) | C6H | 16.610 | 16.610 | 16.610 | 1.7218 | -16.610 | tensile_inplane_stress_like |
+| C111_1x1_H_6L_strain_biaxial_m0p010_scf | (111) | C6H | 36.560 | 36.560 | 36.560 | 3.7899 | -36.560 | tensile_inplane_stress_like |
+| C111_1x1_H_6L_strain_biaxial_p0p000_scf | (111) | C6H | -2.440 | -2.440 | -2.440 | -0.2529 | 2.440 | compressive_inplane_pressure_like |
+| C111_1x1_H_6L_strain_biaxial_p0p005_scf | (111) | C6H | -20.620 | -20.620 | -20.620 | -2.1375 | 20.620 | compressive_inplane_pressure_like |
+| C111_1x1_H_6L_strain_biaxial_p0p010_scf | (111) | C6H | -37.970 | -37.970 | -37.970 | -3.9360 | 37.970 | compressive_inplane_pressure_like |
 | C111_1x1_H_6L_stress_scf | (111) | C6H | -2.440 | -2.440 | -2.440 | -0.2529 | 2.440 | compressive_inplane_pressure_like |
 
 ## Interpretation
