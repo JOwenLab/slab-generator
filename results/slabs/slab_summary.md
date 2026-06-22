@@ -2,8 +2,8 @@
 
 Parsed completed and available diamond slab Quantum ESPRESSO calculations.
 
-- Slab calculations found: 4
-- Completed: 4
+- Slab calculations found: 7
+- Completed: 7
 - Needs attention: 1
 
 ## Slab Runs
@@ -11,9 +11,12 @@ Parsed completed and available diamond slab Quantum ESPRESSO calculations.
 | Run | Formula | Orient. | Term. | Energy (Ry) | Area (A^2) | Force (Ry/Bohr) | Pseudos | Status |
 |---|---:|---:|---:|---:|---:|---:|---|---|
 | C100_2x1_H_6L | C12H2 | (100) | H | -223.02770009 | 12.771 | 0.000151 | ok | JOB DONE |
+| C100_2x1_H_6L_stress_scf | C12H2 | (100) | H | -223.02770009 | 12.771 | 0.000150 | ok | JOB DONE |
 | C110_1x1_H_6L | C12H2 | (110) | H | -138.82985237 | 8.997 | 0.000119 | C_pseudo_mismatch; H_pseudo_not_project_SSSP; ecutwfc_below_reference; ecutrho_below_reference | JOB DONE |
 | C110_1x1_H_6L_SSSP | C12H2 | (110) | H | -223.29801692 | 9.030 | 0.000164 | ok | JOB DONE |
+| C110_1x1_H_6L_SSSP_stress_scf | C12H2 | (110) | H | -223.29801692 | 9.030 | 0.000163 | ok | JOB DONE |
 | C111_1x1_H_6L | C6H | (111) | H | -111.61393168 | 5.530 | 0.000016 | ok | JOB DONE |
+| C111_1x1_H_6L_stress_scf | C6H | (111) | H | -111.61393168 | 5.530 | 0.000019 | ok | JOB DONE |
 
 ## Interpretation Notes
 
