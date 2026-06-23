@@ -2,8 +2,8 @@
 
 Parsed completed and available diamond slab Quantum ESPRESSO calculations.
 
-- Slab calculations found: 35
-- Completed: 35
+- Slab calculations found: 45
+- Completed: 45
 - Needs attention: 1
 
 ## Slab Runs
@@ -37,6 +37,16 @@ Parsed completed and available diamond slab Quantum ESPRESSO calculations.
 | C110_1x1_H_6L_SSSP_strain_biaxial_p0p000_scf | C12H2 | (110) | H | -223.29801692 | 9.030 | 0.000163 | ok | JOB DONE |
 | C110_1x1_H_6L_SSSP_strain_biaxial_p0p005_scf | C12H2 | (110) | H | -223.29635194 | 9.121 | 0.005147 | ok | JOB DONE |
 | C110_1x1_H_6L_SSSP_strain_biaxial_p0p010_scf | C12H2 | (110) | H | -223.29292928 | 9.212 | 0.009873 | ok | JOB DONE |
+| C110_1x1_H_6L_SSSP_strain_x_m0p005_scf | C12H2 | (110) | H | -223.29856492 | 8.985 | 0.002562 | ok | JOB DONE |
+| C110_1x1_H_6L_SSSP_strain_x_m0p010_scf | C12H2 | (110) | H | -223.29816704 | 8.940 | 0.005441 | ok | JOB DONE |
+| C110_1x1_H_6L_SSSP_strain_x_p0p000_scf | C12H2 | (110) | H | -223.29801692 | 9.030 | 0.000163 | ok | JOB DONE |
+| C110_1x1_H_6L_SSSP_strain_x_p0p005_scf | C12H2 | (110) | H | -223.29655649 | 9.076 | 0.002392 | ok | JOB DONE |
+| C110_1x1_H_6L_SSSP_strain_x_p0p010_scf | C12H2 | (110) | H | -223.29421541 | 9.121 | 0.004472 | ok | JOB DONE |
+| C110_1x1_H_6L_SSSP_strain_y_m0p005_scf | C12H2 | (110) | H | -223.29741923 | 8.985 | 0.003759 | ok | JOB DONE |
+| C110_1x1_H_6L_SSSP_strain_y_m0p010_scf | C12H2 | (110) | H | -223.29611007 | 8.940 | 0.007465 | ok | JOB DONE |
+| C110_1x1_H_6L_SSSP_strain_y_p0p000_scf | C12H2 | (110) | H | -223.29801692 | 9.030 | 0.000163 | ok | JOB DONE |
+| C110_1x1_H_6L_SSSP_strain_y_p0p005_scf | C12H2 | (110) | H | -223.29791171 | 9.076 | 0.003630 | ok | JOB DONE |
+| C110_1x1_H_6L_SSSP_strain_y_p0p010_scf | C12H2 | (110) | H | -223.29711403 | 9.121 | 0.007301 | ok | JOB DONE |
 | C110_1x1_H_6L_SSSP_stress_scf | C12H2 | (110) | H | -223.29801692 | 9.030 | 0.000163 | ok | JOB DONE |
 | C111_1x1_H_6L | C6H | (111) | H | -111.61393168 | 5.530 | 0.000016 | ok | JOB DONE |
 | C111_1x1_H_6L_strain_biaxial_m0p005_scf | C6H | (111) | H | -111.61355343 | 5.475 | 0.001239 | ok | JOB DONE |

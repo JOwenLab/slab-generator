@@ -50,10 +50,10 @@
     "termination": "H",
     "transverse_E_risk_score": 0.4138,
     "warnings": "",
-    "x_stress_slope_kbar_per_eps": null,
-    "x_zero_stress_epsilon": null,
-    "y_stress_slope_kbar_per_eps": null,
-    "y_zero_stress_epsilon": null
+    "x_stress_slope_kbar_per_eps": -2215.7999999999997,
+    "x_zero_stress_epsilon": -0.0036835454463399224,
+    "y_stress_slope_kbar_per_eps": -1744.1,
+    "y_zero_stress_epsilon": -0.0047898629665730184
   },
   {
     "approximate_pressure_proxy_kbar": 1.5719999999999978,

@@ -63,6 +63,7 @@ x-only and y-only fits are included as diagnostic information only.  They do not
 | Series | x slope (kbar/strain) | y slope (kbar/strain) | x ε₀ | y ε₀ |
 |--------|----------------------|----------------------|------|------|
 | C100_2x1_H_6L | -1487.0 | -1070.9 | -0.02612 | -0.03632 |
+| C110_1x1_H_6L_SSSP | -2215.8 | -1744.1 | -0.00368 | -0.00479 |
 
 ### Estimated GHz Shifts (from user-supplied coupling constants)
 

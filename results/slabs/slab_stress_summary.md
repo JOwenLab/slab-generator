@@ -32,6 +32,16 @@ Important caveat: QE slab stress is averaged over the full vacuum-containing sup
 | C110_1x1_H_6L_SSSP_strain_biaxial_p0p000_scf | (110) | C12H2 | -22.180 | 5.080 | -8.550 | -0.9494 | 8.550 | compressive_inplane_pressure_like |
 | C110_1x1_H_6L_SSSP_strain_biaxial_p0p005_scf | (110) | C12H2 | -43.610 | -12.130 | -27.870 | -3.0946 | 27.870 | compressive_inplane_pressure_like |
 | C110_1x1_H_6L_SSSP_strain_biaxial_p0p010_scf | (110) | C12H2 | -63.920 | -28.620 | -46.270 | -5.1377 | 46.270 | compressive_inplane_pressure_like |
+| C110_1x1_H_6L_SSSP_strain_x_m0p005_scf | (110) | C12H2 | -1.990 | 7.430 | 2.720 | 0.3020 | -2.720 | tensile_inplane_stress_like |
+| C110_1x1_H_6L_SSSP_strain_x_m0p010_scf | (110) | C12H2 | 18.930 | 9.840 | 14.385 | 1.5973 | -14.385 | tensile_inplane_stress_like |
+| C110_1x1_H_6L_SSSP_strain_x_p0p000_scf | (110) | C12H2 | -22.180 | 5.080 | -8.550 | -0.9494 | 8.550 | compressive_inplane_pressure_like |
+| C110_1x1_H_6L_SSSP_strain_x_p0p005_scf | (110) | C12H2 | -41.670 | 2.810 | -19.430 | -2.1574 | 19.430 | compressive_inplane_pressure_like |
+| C110_1x1_H_6L_SSSP_strain_x_p0p010_scf | (110) | C12H2 | -60.480 | 0.610 | -29.935 | -3.3239 | 29.935 | compressive_inplane_pressure_like |
+| C110_1x1_H_6L_SSSP_strain_y_m0p005_scf | (110) | C12H2 | -19.920 | 20.450 | 0.265 | 0.0294 | -0.265 | near_zero_inplane_mean_stress |
+| C110_1x1_H_6L_SSSP_strain_y_m0p010_scf | (110) | C12H2 | -17.490 | 36.060 | 9.285 | 1.0310 | -9.285 | tensile_inplane_stress_like |
+| C110_1x1_H_6L_SSSP_strain_y_p0p000_scf | (110) | C12H2 | -22.180 | 5.080 | -8.550 | -0.9494 | 8.550 | compressive_inplane_pressure_like |
+| C110_1x1_H_6L_SSSP_strain_y_p0p005_scf | (110) | C12H2 | -24.260 | -10.080 | -17.170 | -1.9065 | 17.170 | compressive_inplane_pressure_like |
+| C110_1x1_H_6L_SSSP_strain_y_p0p010_scf | (110) | C12H2 | -26.180 | -25.020 | -25.600 | -2.8425 | 25.600 | compressive_inplane_pressure_like |
 | C110_1x1_H_6L_SSSP_stress_scf | (110) | C12H2 | -22.180 | 5.080 | -8.550 | -0.9494 | 8.550 | compressive_inplane_pressure_like |
 | C111_1x1_H_6L_strain_biaxial_m0p005_scf | (111) | C6H | 16.610 | 16.610 | 16.610 | 1.7218 | -16.610 | tensile_inplane_stress_like |
 | C111_1x1_H_6L_strain_biaxial_m0p010_scf | (111) | C6H | 36.560 | 36.560 | 36.560 | 3.7899 | -36.560 | tensile_inplane_stress_like |
