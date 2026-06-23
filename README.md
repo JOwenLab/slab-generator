@@ -21,7 +21,8 @@ when generating slabs or setting up strain series.
 For slab surface-energy and stress calculations, subtract strain-matched bulk references
 (same lateral strain as the slab) rather than the unstrained equilibrium reference alone.
 
-General Workflow for the Current Version:
+**General Workflow for the Current Version:
+
 python3 slabgen.py <motif> --layers 6 --a0 3.573641 --format qe --out runs/<name>/pw.in
 
 python3 run_queue.py --dry-run --only <name> --pseudo-source <pseudo_source>
