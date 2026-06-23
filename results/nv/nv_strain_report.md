@@ -48,13 +48,21 @@ All scores are normalised to the **maximum value in this dataset**; the leading 
 
 ## 4. Surface Ranking
 
-Surfaces sorted by `overall_NV_perturbation_score` (descending).
+One row per physical surface series, sorted by `overall_NV_perturbation_score` (descending).  Ranking is based on the **biaxial** residual stress and stress-tensor anisotropy.  x-only / y-only fits appear as diagnostics in §4.1 where available.
 
-| Series | Orient. | Residual stress (kbar) | Preferred biaxial strain | σxx (kbar) | σyy (kbar) | Anisotropy (kbar) | τ_mean (N/m) | D-risk | E-risk | Overall | NV risk |
-|---|---|---|---|---|---|---|---|---|---|---|---|
-| C100_2x1_H_6L | (100) | -38.39 | -0.01444 | -6.15 | -72.02 | 65.87 | -3.932 | 1.000 | 1.000 | 1.000 | **high** |
-| C110_1x1_H_6L_SSSP | (110) | -7.59 | -0.00192 | -22.18 | 5.08 | -27.26 | -0.843 | 0.198 | 0.414 | 0.306 | **moderate** |
-| C111_1x1_H_6L | (111) | -1.57 | -0.00042 | -2.44 | -2.44 | 0.00 | -0.163 | 0.041 | 0.000 | 0.021 | **low** |
+| Series | Orient. | Primary mode | Residual stress (kbar) | Preferred biaxial strain | σxx (kbar) | σyy (kbar) | Anisotropy (kbar) | τ_mean (N/m) | D-risk | E-risk | Overall | NV risk |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| C100_2x1_H_6L | (100) | biaxial | -38.39 | -0.01444 | -6.15 | -72.02 | 65.87 | -3.932 | 1.000 | 1.000 | 1.000 | **high** |
+| C110_1x1_H_6L_SSSP | (110) | biaxial | -7.59 | -0.00192 | -22.18 | 5.08 | -27.26 | -0.843 | 0.198 | 0.414 | 0.306 | **moderate** |
+| C111_1x1_H_6L | (111) | biaxial | -1.57 | -0.00042 | -2.44 | -2.44 | 0.00 | -0.163 | 0.041 | 0.000 | 0.021 | **low** |
+
+### 4.1 Uniaxial Strain Diagnostics
+
+x-only and y-only fits are included as diagnostic information only.  They do not affect the ranking scores.
+
+| Series | x slope (kbar/strain) | y slope (kbar/strain) | x ε₀ | y ε₀ |
+|--------|----------------------|----------------------|------|------|
+| C100_2x1_H_6L | -1487.0 | -1070.9 | -0.02612 | -0.03632 |
 
 ### Estimated GHz Shifts (from user-supplied coupling constants)
 
@@ -94,7 +102,7 @@ H-(100) > H-(110) > H-(111) in predicted NV perturbation.
 
 2. **No explicit NV defect.**  These calculations contain no NV center.  The D and E estimates are based on bulk-like spin-strain coupling, which may differ near a surface.
 
-3. **Biaxial-only strain series.**  The current series imposes equal in-plane strain (εxx = εyy).  The anisotropy (σxx ≠ σyy) captured from the stress SCF is not yet systematically decomposed into independent x-only and y-only responses.  Adding uniaxial strain series would give a more complete picture of E.
+3. **Strain decomposition.**  Where available, x-only and y-only strain fits are included in §4.1 as diagnostic information (stress slopes and zero-stress strains per uniaxial direction).  The ranking table (§4) is still based on the biaxial residual stress and stress-tensor anisotropy (σxx − σyy from the stress SCF), which remains the most physically complete measure for the D-risk / E-risk split.  Uniaxial fits are supplementary and do not affect the ranking scores.
 
 4. **No calibrated spin-strain constants.**  Unless `--d-shift-ghz-per-strain` and `--e-splitting-ghz-per-strain` are supplied, GHz estimates are absent.  Literature values for diamond NV strain coupling span roughly 10–15 GHz/strain (axial) and 1–10 GHz/strain (transverse) depending on orientation; use these only as order-of-magnitude guides.
 
@@ -108,7 +116,7 @@ H-(100) > H-(110) > H-(111) in predicted NV perturbation.
 
 | Priority | Calculation | Motivation |
 |----------|-------------|------------|
-| 1 | x-only and y-only strain series for H-(100) and H-(110) | Decompose anisotropy into independent components; needed for rigorous E coupling |
+| 1 | x-only and y-only strain series for H-(110) | H-(100) x/y series complete (see §4.1); H-(110) x/y still needed for rigorous E coupling decomposition |
 | 2 | NV-containing supercell near H-(100) surface | Directly compute strain at NV site and D/E from spin-polarised DFT |
 | 3 | NV-containing supercell near H-(110) surface | Intermediate-risk surface; compare with (100) result |
 | 4 | NV-containing supercell near H-(111) surface | Low-risk baseline; verify near-zero E |

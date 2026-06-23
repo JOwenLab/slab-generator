@@ -2,8 +2,8 @@
 
 Parsed completed and available diamond slab Quantum ESPRESSO calculations.
 
-- Slab calculations found: 25
-- Completed: 25
+- Slab calculations found: 35
+- Completed: 35
 - Needs attention: 1
 
 ## Slab Runs
@@ -19,6 +19,16 @@ Parsed completed and available diamond slab Quantum ESPRESSO calculations.
 | C100_2x1_H_6L_strain_biaxial_p0p000_scf | C12H2 | (100) | H | -223.02770009 | 12.771 | 0.000150 | ok | JOB DONE |
 | C100_2x1_H_6L_strain_biaxial_p0p005_scf | C12H2 | (100) | H | -223.02226068 | 12.899 | 0.006190 | ok | JOB DONE |
 | C100_2x1_H_6L_strain_biaxial_p0p010_scf | C12H2 | (100) | H | -223.01531198 | 13.028 | 0.012202 | ok | JOB DONE |
+| C100_2x1_H_6L_strain_x_m0p005_scf | C12H2 | (100) | H | -223.02760174 | 12.707 | 0.002021 | ok | JOB DONE |
+| C100_2x1_H_6L_strain_x_m0p010_scf | C12H2 | (100) | H | -223.02656911 | 12.643 | 0.004221 | ok | JOB DONE |
+| C100_2x1_H_6L_strain_x_p0p000_scf | C12H2 | (100) | H | -223.02770009 | 12.771 | 0.000150 | ok | JOB DONE |
+| C100_2x1_H_6L_strain_x_p0p005_scf | C12H2 | (100) | H | -223.02689571 | 12.835 | 0.001963 | ok | JOB DONE |
+| C100_2x1_H_6L_strain_x_p0p010_scf | C12H2 | (100) | H | -223.02521779 | 12.899 | 0.003778 | ok | JOB DONE |
+| C100_2x1_H_6L_strain_y_m0p005_scf | C12H2 | (100) | H | -223.03169008 | 12.707 | 0.006266 | ok | JOB DONE |
+| C100_2x1_H_6L_strain_y_m0p010_scf | C12H2 | (100) | H | -223.03502211 | 12.643 | 0.012679 | ok | JOB DONE |
+| C100_2x1_H_6L_strain_y_p0p000_scf | C12H2 | (100) | H | -223.02770009 | 12.771 | 0.000150 | ok | JOB DONE |
+| C100_2x1_H_6L_strain_y_p0p005_scf | C12H2 | (100) | H | -223.02307645 | 12.835 | 0.005878 | ok | JOB DONE |
+| C100_2x1_H_6L_strain_y_p0p010_scf | C12H2 | (100) | H | -223.01784134 | 12.899 | 0.011647 | ok | JOB DONE |
 | C100_2x1_H_6L_stress_scf | C12H2 | (100) | H | -223.02770009 | 12.771 | 0.000150 | ok | JOB DONE |
 | C110_1x1_H_6L | C12H2 | (110) | H | -138.82985237 | 8.997 | 0.000119 | C_pseudo_mismatch; H_pseudo_not_project_SSSP; ecutwfc_below_reference; ecutrho_below_reference | JOB DONE |
 | C110_1x1_H_6L_SSSP | C12H2 | (110) | H | -223.29801692 | 9.030 | 0.000164 | ok | JOB DONE |

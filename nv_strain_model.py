@@ -58,12 +58,16 @@ OUTPUT_FIELDS = [
     "series",
     "orientation",
     "termination",
-    "strain_mode",
+    "primary_mode",
     "fit_status",
     "residual_mean_stress_kbar",
     "preferred_biaxial_strain",
     "approximate_pressure_proxy_kbar",
     "stress_slope_kbar_per_eps",
+    "x_stress_slope_kbar_per_eps",
+    "y_stress_slope_kbar_per_eps",
+    "x_zero_stress_epsilon",
+    "y_zero_stress_epsilon",
     "stress_xx_kbar",
     "stress_yy_kbar",
     "inplane_anisotropy_kbar",
@@ -143,26 +147,70 @@ def find_stress_row(series, stress_lookup):
 # Record assembly
 # ──────────────────────────────────────────────────────────────────────────────
 
+def group_fit_rows_by_series(fit_rows):
+    """Return {series: {strain_mode: row}} grouping fit rows by series."""
+    groups = {}
+    for row in fit_rows:
+        series = row.get("series", "")
+        mode = row.get("strain_mode", "biaxial")
+        if series not in groups:
+            groups[series] = {}
+        groups[series][mode] = row
+    return groups
+
+
 def assemble_records(fit_rows, stress_lookup):
     """
-    Merge strain-fit data with stress-SCF data into one record per slab/series.
+    Merge strain-fit data with stress-SCF data into one record per surface series.
+
+    Biaxial fit is preferred as the primary row for ranking.  x-only and y-only
+    fits (when present) are recorded as diagnostic fields only and do not produce
+    separate ranked rows.  If no biaxial fit exists, falls back to the first
+    available mode and adds a warning.
+
     Returns a list of dicts with raw (un-normalised) score fields _raw_D, _raw_E.
     """
+    groups = group_fit_rows_by_series(fit_rows)
     records = []
-    for fit in fit_rows:
-        series = fit.get("series", "")
+
+    for series, modes in groups.items():
+        # ── Choose primary fit row ───────────────────────────────────────────
+        if "biaxial" in modes:
+            primary = modes["biaxial"]
+            primary_mode = "biaxial"
+            fallback_warning = None
+        else:
+            first_mode = next(iter(modes))
+            primary = modes[first_mode]
+            primary_mode = first_mode
+            fallback_warning = f"no_biaxial_fit_found; using_{first_mode}_as_primary"
+
         stress = find_stress_row(series, stress_lookup)
 
-        # ── From strain fit ──────────────────────────────────────────────────
-        residual_mean_stress = ffloat(fit.get("stress_at_zero_kbar"))
-        preferred_biaxial_strain = ffloat(fit.get("zero_stress_epsilon"))
-        stress_slope = ffloat(fit.get("stress_slope_kbar_per_eps"))
-        tau_at_zero = ffloat(fit.get("tau_at_zero_n_per_m"))
+        # ── From primary (biaxial) strain fit ───────────────────────────────
+        residual_mean_stress = ffloat(primary.get("stress_at_zero_kbar"))
+        preferred_biaxial_strain = ffloat(primary.get("zero_stress_epsilon"))
+        stress_slope = ffloat(primary.get("stress_slope_kbar_per_eps"))
+        tau_at_zero = ffloat(primary.get("tau_at_zero_n_per_m"))
 
-        # Approximate pressure proxy: negative of mean compressive stress.
-        # Positive value = net compressive (pressure-like); negative = tensile.
         approx_pressure_proxy = (
             -residual_mean_stress if residual_mean_stress is not None else None
+        )
+
+        # ── Diagnostic fields from x-only / y-only fits (if present) ────────
+        x_row = modes.get("x")
+        y_row = modes.get("y")
+        x_stress_slope = (
+            ffloat(x_row.get("stress_slope_kbar_per_eps")) if x_row else None
+        )
+        y_stress_slope = (
+            ffloat(y_row.get("stress_slope_kbar_per_eps")) if y_row else None
+        )
+        x_zero_stress_epsilon = (
+            ffloat(x_row.get("zero_stress_epsilon")) if x_row else None
+        )
+        y_zero_stress_epsilon = (
+            ffloat(y_row.get("zero_stress_epsilon")) if y_row else None
         )
 
         # ── From stress SCF (joined) ─────────────────────────────────────────
@@ -182,47 +230,49 @@ def assemble_records(fit_rows, stress_lookup):
         tau_mean = tau_at_zero if tau_at_zero is not None else tau_mean_join
 
         # ── Raw scores (un-normalised) ───────────────────────────────────────
-        # axial D risk: hydrostatic-like mean stress drives ΔD.
         raw_D = abs(residual_mean_stress) if residual_mean_stress is not None else 0.0
-
-        # transverse E risk: anisotropic in-plane stress drives E.
-        # If anisotropy is unknown, fall back to zero (conservative).
         raw_E = abs(inplane_anisotropy) if inplane_anisotropy is not None else 0.0
 
         # ── Build warnings ───────────────────────────────────────────────────
-        warnings = list(filter(None, [fit.get("warnings", "")]))
+        warnings = list(filter(None, [primary.get("warnings", "")]))
         if stress is None:
             warnings.append("no_stress_scf_row_found; anisotropy fields empty")
+        if fallback_warning:
+            warnings.append(fallback_warning)
         warn_str = "; ".join(w for w in warnings if w)
 
         records.append({
-            "series":                       series,
-            "orientation":                  fit.get("orientation", ""),
-            "termination":                  fit.get("termination", ""),
-            "strain_mode":                  fit.get("strain_mode", ""),
-            "fit_status":                   fit.get("fit_status", ""),
-            "residual_mean_stress_kbar":    residual_mean_stress,
-            "preferred_biaxial_strain":     preferred_biaxial_strain,
+            "series":                          series,
+            "orientation":                     primary.get("orientation", ""),
+            "termination":                     primary.get("termination", ""),
+            "primary_mode":                    primary_mode,
+            "fit_status":                      primary.get("fit_status", ""),
+            "residual_mean_stress_kbar":       residual_mean_stress,
+            "preferred_biaxial_strain":        preferred_biaxial_strain,
             "approximate_pressure_proxy_kbar": approx_pressure_proxy,
-            "stress_slope_kbar_per_eps":    stress_slope,
-            "stress_xx_kbar":               stress_xx,
-            "stress_yy_kbar":               stress_yy,
-            "inplane_anisotropy_kbar":      inplane_anisotropy,
-            "tau_mean_n_per_m":             tau_mean,
-            "tau_anisotropy_n_per_m":       tau_anisotropy,
+            "stress_slope_kbar_per_eps":       stress_slope,
+            "x_stress_slope_kbar_per_eps":     x_stress_slope,
+            "y_stress_slope_kbar_per_eps":     y_stress_slope,
+            "x_zero_stress_epsilon":           x_zero_stress_epsilon,
+            "y_zero_stress_epsilon":           y_zero_stress_epsilon,
+            "stress_xx_kbar":                  stress_xx,
+            "stress_yy_kbar":                  stress_yy,
+            "inplane_anisotropy_kbar":         inplane_anisotropy,
+            "tau_mean_n_per_m":                tau_mean,
+            "tau_anisotropy_n_per_m":          tau_anisotropy,
             # Placeholders filled by normalize_scores()
-            "axial_D_shift_risk_score":     None,
-            "transverse_E_risk_score":      None,
-            "overall_NV_perturbation_score": None,
-            "qualitative_NV_risk":          None,
+            "axial_D_shift_risk_score":        None,
+            "transverse_E_risk_score":         None,
+            "overall_NV_perturbation_score":   None,
+            "qualitative_NV_risk":             None,
             # Placeholders filled by apply_coupling_constants()
-            "estimated_delta_D_GHz":        None,
-            "estimated_E_GHz":              None,
-            "interpretation":               "",
-            "warnings":                     warn_str,
+            "estimated_delta_D_GHz":           None,
+            "estimated_E_GHz":                 None,
+            "interpretation":                  "",
+            "warnings":                        warn_str,
             # Internal: removed before output
-            "_raw_D":                       raw_D,
-            "_raw_E":                       raw_E,
+            "_raw_D":                          raw_D,
+            "_raw_E":                          raw_E,
         })
     return records
 
@@ -464,22 +514,26 @@ def write_report(records, path, ref_data, d_shift_const, e_split_const):
     lines += [
         "## 4. Surface Ranking",
         "",
-        "Surfaces sorted by `overall_NV_perturbation_score` (descending).",
+        "One row per physical surface series, sorted by `overall_NV_perturbation_score` "
+        "(descending).  Ranking is based on the **biaxial** residual stress and "
+        "stress-tensor anisotropy.  x-only / y-only fits appear as diagnostics "
+        "in §4.1 where available.",
         "",
     ]
 
     header = (
-        "| Series | Orient. | Residual stress (kbar) | "
+        "| Series | Orient. | Primary mode | Residual stress (kbar) | "
         "Preferred biaxial strain | σxx (kbar) | σyy (kbar) | "
         "Anisotropy (kbar) | τ_mean (N/m) | "
         "D-risk | E-risk | Overall | NV risk |"
     )
-    sep = "|" + "|".join(["---"] * 12) + "|"
+    sep = "|" + "|".join(["---"] * 13) + "|"
     lines += [header, sep]
 
     for r in records:
         lines.append(
             f"| {r['series']} | {r['orientation']} "
+            f"| {r['primary_mode']} "
             f"| {fmt(r['residual_mean_stress_kbar'], 2)} "
             f"| {fmt(r['preferred_biaxial_strain'], 5)} "
             f"| {fmt(r['stress_xx_kbar'], 2)} "
@@ -492,6 +546,38 @@ def write_report(records, path, ref_data, d_shift_const, e_split_const):
             f"| **{r['qualitative_NV_risk']}** |"
         )
     lines.append("")
+
+    # ── 4.1. x/y uniaxial diagnostics table (when present) ──────────────────
+    has_uniaxial = any(
+        r.get("x_stress_slope_kbar_per_eps") is not None
+        or r.get("y_stress_slope_kbar_per_eps") is not None
+        for r in records
+    )
+    if has_uniaxial:
+        lines += [
+            "### 4.1 Uniaxial Strain Diagnostics",
+            "",
+            "x-only and y-only fits are included as diagnostic information only.  "
+            "They do not affect the ranking scores.",
+            "",
+            "| Series | x slope (kbar/strain) | y slope (kbar/strain) | "
+            "x ε₀ | y ε₀ |",
+            "|--------|----------------------|----------------------|------|------|",
+        ]
+        for r in records:
+            xs = r.get("x_stress_slope_kbar_per_eps")
+            ys = r.get("y_stress_slope_kbar_per_eps")
+            xe = r.get("x_zero_stress_epsilon")
+            ye = r.get("y_zero_stress_epsilon")
+            if xs is not None or ys is not None:
+                lines.append(
+                    f"| {r['series']} "
+                    f"| {fmt(xs, 1) if xs is not None else 'n/a'} "
+                    f"| {fmt(ys, 1) if ys is not None else 'n/a'} "
+                    f"| {fmt(xe, 5) if xe is not None else 'n/a'} "
+                    f"| {fmt(ye, 5) if ye is not None else 'n/a'} |"
+                )
+        lines.append("")
 
     # GHz estimates table (only if constants were supplied)
     has_ghz = any(
@@ -570,11 +656,13 @@ def write_report(records, path, ref_data, d_shift_const, e_split_const):
         "The D and E estimates are based on bulk-like spin-strain coupling, which "
         "may differ near a surface.",
         "",
-        "3. **Biaxial-only strain series.**  The current series imposes equal "
-        "in-plane strain (εxx = εyy).  The anisotropy (σxx ≠ σyy) captured from "
-        "the stress SCF is not yet systematically decomposed into independent "
-        "x-only and y-only responses.  Adding uniaxial strain series would give "
-        "a more complete picture of E.",
+        "3. **Strain decomposition.**  Where available, x-only and y-only strain "
+        "fits are included in §4.1 as diagnostic information (stress slopes and "
+        "zero-stress strains per uniaxial direction).  The ranking table (§4) "
+        "is still based on the biaxial residual stress and stress-tensor "
+        "anisotropy (σxx − σyy from the stress SCF), which remains the most "
+        "physically complete measure for the D-risk / E-risk split.  "
+        "Uniaxial fits are supplementary and do not affect the ranking scores.",
         "",
         "4. **No calibrated spin-strain constants.**  Unless `--d-shift-ghz-per-strain` "
         "and `--e-splitting-ghz-per-strain` are supplied, GHz estimates are absent.  "
@@ -602,9 +690,9 @@ def write_report(records, path, ref_data, d_shift_const, e_split_const):
         "",
         "| Priority | Calculation | Motivation |",
         "|----------|-------------|------------|",
-        "| 1 | x-only and y-only strain series for H-(100) and H-(110) | "
-        "Decompose anisotropy into independent components; needed for rigorous E "
-        "coupling |",
+        "| 1 | x-only and y-only strain series for H-(110) | "
+        "H-(100) x/y series complete (see §4.1); H-(110) x/y still needed for "
+        "rigorous E coupling decomposition |",
         "| 2 | NV-containing supercell near H-(100) surface | "
         "Directly compute strain at NV site and D/E from spin-polarised DFT |",
         "| 3 | NV-containing supercell near H-(110) surface | "

@@ -10,10 +10,10 @@
     "orientation": "(100)",
     "overall_NV_perturbation_score": 1.0,
     "preferred_biaxial_strain": -0.01444013664002866,
+    "primary_mode": "biaxial",
     "qualitative_NV_risk": "high",
     "residual_mean_stress_kbar": -38.38593253968254,
     "series": "C100_2x1_H_6L",
-    "strain_mode": "biaxial",
     "stress_slope_kbar_per_eps": -2658.2804232804237,
     "stress_xx_kbar": -6.15,
     "stress_yy_kbar": -72.02,
@@ -21,7 +21,11 @@
     "tau_mean_n_per_m": -3.9315209269981324,
     "termination": "H",
     "transverse_E_risk_score": 1.0,
-    "warnings": ""
+    "warnings": "",
+    "x_stress_slope_kbar_per_eps": -1486.9999999999998,
+    "x_zero_stress_epsilon": -0.02611701412239409,
+    "y_stress_slope_kbar_per_eps": -1070.8999999999994,
+    "y_zero_stress_epsilon": -0.0363227192081427
   },
   {
     "approximate_pressure_proxy_kbar": 7.592999999999996,
@@ -34,10 +38,10 @@
     "orientation": "(110)",
     "overall_NV_perturbation_score": 0.3058,
     "preferred_biaxial_strain": -0.0019161661535355564,
+    "primary_mode": "biaxial",
     "qualitative_NV_risk": "moderate",
     "residual_mean_stress_kbar": -7.592999999999996,
     "series": "C110_1x1_H_6L_SSSP",
-    "strain_mode": "biaxial",
     "stress_slope_kbar_per_eps": -3962.6000000000004,
     "stress_xx_kbar": -22.18,
     "stress_yy_kbar": 5.08,
@@ -45,7 +49,11 @@
     "tau_mean_n_per_m": -0.8431018806394499,
     "termination": "H",
     "transverse_E_risk_score": 0.4138,
-    "warnings": ""
+    "warnings": "",
+    "x_stress_slope_kbar_per_eps": null,
+    "x_zero_stress_epsilon": null,
+    "y_stress_slope_kbar_per_eps": null,
+    "y_zero_stress_epsilon": null
   },
   {
     "approximate_pressure_proxy_kbar": 1.5719999999999978,
@@ -58,10 +66,10 @@
     "orientation": "(111)",
     "overall_NV_perturbation_score": 0.0205,
     "preferred_biaxial_strain": -0.00042192280852434316,
+    "primary_mode": "biaxial",
     "qualitative_NV_risk": "low",
     "residual_mean_stress_kbar": -1.5719999999999978,
     "series": "C111_1x1_H_6L",
-    "strain_mode": "biaxial",
     "stress_slope_kbar_per_eps": -3725.8,
     "stress_xx_kbar": -2.44,
     "stress_yy_kbar": -2.44,
@@ -69,6 +77,10 @@
     "tau_mean_n_per_m": -0.16295584530239987,
     "termination": "H",
     "transverse_E_risk_score": 0.0,
-    "warnings": ""
+    "warnings": "",
+    "x_stress_slope_kbar_per_eps": null,
+    "x_zero_stress_epsilon": null,
+    "y_stress_slope_kbar_per_eps": null,
+    "y_zero_stress_epsilon": null
   }
 ]
