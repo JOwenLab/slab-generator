@@ -61,6 +61,18 @@ Falsifiable per-face signatures under the slab's own equilibrium biaxial strain:
 per face/termination, plus predicted stick spectra overlaid for two
 terminations (the "hydrogenation shift" figure, computed).
 
+**A5. Ensemble lineshape.** The experimental reference data are nanodiamond
+ensembles (6.7 / 14.8 nm effective diameter), so the comparison target is an
+orientation- and facet-averaged lineshape: convolve the four-orientation stick
+spectrum (weighted over (100)/(110)/(111) facets) with a Lorentzian of the
+measured width. Slab thickness t maps onto particle size heuristically
+(surface-to-volume of a particle ≈ 2× a slab of t = diameter); the 4.5/6 nm
+ladder anchors double as the direct comparison points for the 6.7 nm sample.
+Sign check to resolve early: observed shift is DOWNWARD (~15–25 MHz) while
+naive in-plane compression raises D — the h41/h43 balance under biaxial
+strain + Poisson εzz determines the sign and is a sharp test of the strain
+hypothesis.
+
 ---
 
 ## Workstream B — thickness ladder (replaces prior 1–20 nm plan)
@@ -117,7 +129,9 @@ large cells below. —
 After each completed bundle, the scheduler: (1) fits ε\*(t) = ε∞ − 2τ/(Y_eff t)
 and E(t) per series; (2) computes leave-one-out residuals; (3) proposes the
 next thickness at the largest-uncertainty gap in 1/t space, or where predicted
-E(t) crosses the experimental linewidth (config parameter, default 0.1 MHz);
+E(t) crosses the experimental linewidth (config parameter; default 20 MHz to
+match the observed nanodiamond-ensemble ODMR linewidth — set to ~0.1 MHz only
+for single-NV comparisons);
 (4) stops when the model interpolates all sampled t within tolerance.
 Deterministic rule; Fable-5 layer writes the human-readable proposal; `--go`
 approval gate unchanged. Implementation: `propose_next_thickness.py` +
