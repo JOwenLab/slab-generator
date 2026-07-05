@@ -13,6 +13,18 @@ couples the ms=±1 levels and is tied to NV coherence. Claim to test: *surfaces
 limit NV coherence by inducing anisotropic strain* — a mechanism distinct from
 the usual surface-spin-bath picture.
 
+**Differential framing (key, per experimental input).** The measured shift is
+between two surface states (e.g. before/after more complete hydrogenation),
+not vs. ideal bulk. DFT gives H-terminated surfaces as compressive (raising
+D), yet hydrogenation shifts D DOWN — consistent with strain iff the starting
+state (bare reconstructed / O-containing) is MORE compressive than the H end
+state, so hydrogenation relieves compression (relative tensile change). The
+headline campaign observable is therefore the pairwise termination-difference
+matrix ΔD(H)−ΔD(X) and ΔE(H)−ΔE(X) per face and thickness, X ∈ {bare, O-ether,
+O-ketone, F}. Sharp test: differences must be negative for the strain
+hypothesis to survive. Batch 3 (bare) and batch 4 (O-ether) are thereby
+promoted from "baseline" to central.
+
 ---
 
 ## Workstream A — NV spin–strain physics layer (code)
