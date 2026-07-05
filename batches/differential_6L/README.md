@@ -15,21 +15,23 @@ Matched at 6L:
   C100_1x1_O_ether_6L_sym  ( 6 C + 2 O)
   C110_O_ether_6L_sym      (24 C + 4 O)
 
-## Pandey (111) — REMOVED pending symmetric support
-  C111_2x1_pandey_10L_Hbot (20 C + 2 H; H-capped bottom, 2 layers frozen)
-  C111_1x1_H_10L_sym       (10 C + 2 H)
+Matched at 20L (symmetric Pandey needs >= 20 layers: two reconstruction
+regions + protected bulk for the inversion center):
+  C111_2x1_pandey_20L_sym  (40 C; inversion-symmetric, Pandey both faces)
+  C111_1x1_H_20L_sym       (20 C + 2 H)
 
 ## Known caveats
 
 1. The pre-existing C1xx_*_H_6L results are asymmetric (H top / bare bottom):
    their tau and eps* mix two different surfaces. Use the *_sym runs for all
    termination attribution; keep old runs as diagnostics only.
-2. C111_2x1_pandey_10L_Hbot is asymmetric by necessity (single stored face).
-   Its surface quantities require subtracting the H contribution using
-   C111_1x1_H_10L_sym from the same batch. NOTE: slabgen currently emits NO
-   dipole-correction flags (tefield/dipfield/edir) for asymmetric slabs —
-   known open issue; assess the slab dipole from the relax output before
-   trusting the stress numbers.
+2. All slabs in this batch are symmetric (dipole-free by construction).
+   The generator now defaults to symmetric slabs; asymmetric generation
+   requires an explicit --asymmetric flag and automatically enables the QE
+   dipole correction (tefield/dipfield/edir) in ALL relax modes — the
+   previous behavior emitted it only for cell2d runs, so the pre-existing
+   asymmetric 6L H results also lack dipole correction (one more reason
+   they are diagnostics only).
 3. Bare C(111) 1x1 (unreconstructed radical surface) intentionally omitted;
    Pandey 2x1 is the physical bare (111).
 4. Bare/Pandey surfaces may have (near-)metallic surface states: MV smearing

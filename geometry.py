@@ -451,3 +451,133 @@ def seiwatz_slab(variant: str, n_layers: int, a0: float = A0_DEFAULT,
     if bottom == "H":
         add_monovalent(s, "H", BOND[("C", "H")], top=False, bottom=True)
     return s
+
+
+# ------------------------------------------------- inversion symmetrization
+def _z_layer_centers(slab: Slab, species="C", tol=0.4):
+    """Mean z of each atomic layer of `species`, bottom to top."""
+    zs = sorted(float(z) for z, e in zip(slab.pos[:, 2], slab.el)
+                if e == species)
+    layers = [[zs[0]]]
+    for z in zs[1:]:
+        (layers.append([z]) if z - layers[-1][-1] > tol
+         else layers[-1].append(z))
+    return [float(np.mean(L)) for L in layers]
+
+
+def invert_symmetrize(slab: Slab, n_layers_target: int,
+                      recon_depth: float, guard: float = 1.0) -> Slab:
+    """Return an inversion-symmetric slab whose both faces carry the input
+    slab's TOP-face structure (reconstruction and/or adsorbates).
+
+    Every C-C bond midpoint in the ideal-constructed bulk region is an exact
+    inversion center of the diamond lattice, so reflecting the kept upper
+    part through such a midpoint reproduces the identical surface on the
+    bottom: equal surface stress on both faces and zero net dipole by
+    symmetry.  The input's own bottom face is discarded.
+
+    Parameters
+    ----------
+    n_layers_target : desired total number of C layers (the center bond is
+        chosen to match it; vertical bonds give even totals, in-plane bonds
+        odd totals on (111)).
+    recon_depth : thickness (Angstrom) of the top region that may deviate
+        from ideal bulk positions; center candidates are kept below it.
+    """
+    pos, el = slab.pos, slab.el
+    zmax_c = max(z for z, e in zip(pos[:, 2], el) if e == "C")
+    zmin_c = min(z for z, e in zip(pos[:, 2], el) if e == "C")
+    ceiling = zmax_c - recon_depth
+    floor = zmin_c + guard
+    if ceiling - floor < 0.5:
+        raise ValueError("invert_symmetrize: source slab too thin for the "
+                         "requested reconstruction depth; add bulk layers")
+
+    # --- candidate inversion centers: bulk C-C bond midpoints -------------
+    imgs = _images(slab)
+    rcut = 1.15 * np.sqrt(3) / 4 * slab.a0
+    cands = []
+    for i in range(slab.n):
+        if el[i] != "C" or not (floor <= pos[i, 2] <= ceiling):
+            continue
+        d = pos[None, :, :] + imgs[:, None, :] - pos[i]
+        dist = np.linalg.norm(d, axis=2)
+        dist[:, i][np.abs(dist[:, i]) < 1e-6] = 1e9
+        for (im, j) in np.argwhere(dist < rcut):
+            if el[j] != "C":
+                continue
+            c = pos[i] + 0.5 * d[im, j]
+            if floor <= c[2] <= ceiling:
+                cands.append(c)
+    if not cands:
+        raise ValueError("invert_symmetrize: no bulk bond-midpoint centers "
+                         "found in the allowed window")
+
+    layer_z = _z_layer_centers(slab)
+
+    def predicted_total(cz):
+        above = sum(1 for L in layer_z if L > cz + 0.05)
+        equatorial = any(abs(L - cz) <= 0.05 for L in layer_z)
+        return 2 * above + (1 if equatorial else 0)
+
+    best = min(cands, key=lambda c: (abs(predicted_total(c[2])
+                                         - n_layers_target),
+                                     abs(c[2] - 0.5 * (zmax_c + zmin_c))))
+    achieved = predicted_total(best[2])
+    if achieved != n_layers_target:
+        opts = sorted({predicted_total(c[2]) for c in cands})
+        raise ValueError(f"invert_symmetrize: cannot realize "
+                         f"{n_layers_target} layers with an exact inversion "
+                         f"center; achievable counts here: {opts}")
+
+    # --- build: keep upper part, add its inversion image ------------------
+    keep = [k for k in range(slab.n) if pos[k, 2] >= best[2] - 1e-4]
+    new_pos = [pos[k].copy() for k in keep]
+    new_el = [el[k] for k in keep]
+    new_tags = [slab.tags[k] if k < len(slab.tags) else "" for k in keep]
+    for k in keep:
+        new_pos.append(2.0 * best - pos[k])
+        new_el.append(el[k])
+        new_tags.append(slab.tags[k] if k < len(slab.tags) else "")
+
+    out = Slab(slab.A1.copy(), slab.A2.copy(), np.array(new_pos), new_el,
+               slab.a0, slab.orientation, new_tags)
+
+    # --- dedupe equatorial duplicates (periodic min-image) ----------------
+    imgs2 = _images(out)
+    drop = set()
+    for i in range(out.n):
+        if i in drop:
+            continue
+        d = out.pos[None, i + 1:, :] + imgs2[:, None, :] - out.pos[i]
+        dist = np.linalg.norm(d, axis=2)
+        for (im, j) in np.argwhere(dist < 0.10):
+            drop.add(i + 1 + j)
+    if drop:
+        keep2 = [i for i in range(out.n) if i not in drop]
+        out = Slab(out.A1, out.A2, out.pos[keep2],
+                   [out.el[i] for i in keep2], out.a0, out.orientation,
+                   [out.tags[i] for i in keep2])
+
+    # --- verify exact inversion symmetry about the constructed center -----
+    ctr = best
+    imgs3 = _images(out)
+    for i in range(out.n):
+        target = 2.0 * ctr - out.pos[i]
+        d = out.pos[None, :, :] + imgs3[:, None, :] - target
+        dist = np.linalg.norm(d, axis=2)
+        hits = np.argwhere(dist < 0.02)
+        if not any(out.el[j] == out.el[i] for (_, j) in hits):
+            raise RuntimeError(f"invert_symmetrize: verification failed at "
+                               f"atom {i} ({out.el[i]}); no inversion "
+                               f"partner found")
+    # pairwise sanity: no unphysical close contacts survived the merge
+    for i in range(out.n):
+        d = out.pos[None, :, :] + imgs3[:, None, :] - out.pos[i]
+        dist = np.linalg.norm(d, axis=2)
+        dist[:, i][np.abs(dist[:, i]) < 1e-6] = 1e9
+        if dist.min() < 0.8:
+            raise RuntimeError("invert_symmetrize: unphysical close contact "
+                               "after merge; check recon_depth")
+    out.wrap()
+    return out
