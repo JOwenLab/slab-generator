@@ -61,17 +61,17 @@ Falsifiable per-face signatures under the slab's own equilibrium biaxial strain:
 per face/termination, plus predicted stick spectra overlaid for two
 terminations (the "hydrogenation shift" figure, computed).
 
-**A5. Ensemble lineshape.** The experimental reference data are nanodiamond
-ensembles (6.7 / 14.8 nm effective diameter), so the comparison target is an
-orientation- and facet-averaged lineshape: convolve the four-orientation stick
-spectrum (weighted over (100)/(110)/(111) facets) with a Lorentzian of the
-measured width. Slab thickness t maps onto particle size heuristically
-(surface-to-volume of a particle ≈ 2× a slab of t = diameter); the 4.5/6 nm
-ladder anchors double as the direct comparison points for the 6.7 nm sample.
-Sign check to resolve early: observed shift is DOWNWARD (~15–25 MHz) while
-naive in-plane compression raises D — the h41/h43 balance under biaxial
-strain + Poisson εzz determines the sign and is a sharp test of the strain
-hypothesis.
+**A5 (DEFERRED — later mapping exercise).** Primary deliverables are the
+per-face slab predictions above: strain tensors, ΔD(t), E(t), and
+per-NV-orientation stick spectra for ideal slabs. Connecting slab results to
+the nanodiamond-ensemble environment (facet weighting, orientation averaging,
+Lorentzian convolution to the measured ~20–30 MHz linewidth; heuristic
+surface-to-volume mapping of slab thickness onto particle diameter) is a
+separate, later step with its own stated assumptions.
+Sign check to resolve early (slab-based, stays first-priority): observed shift
+is DOWNWARD (~15–25 MHz) while naive in-plane compression raises D — the
+h41/h43 balance under biaxial strain + Poisson εzz determines the sign and is
+a sharp test of the strain hypothesis.
 
 ---
 
