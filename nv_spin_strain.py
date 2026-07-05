@@ -292,7 +292,16 @@ def main() -> None:
     ap.add_argument("--out-dir", default="results/nv")
     args = ap.parse_args()
     params = PARAM_SETS[args.params]
+    if not os.path.exists(args.from_fits):
+        raise SystemExit(
+            f"No strain-fit summary at {args.from_fits}.\n"
+            "The original 6L results were archived (see "
+            "results/archive_asymmetric_6L/README.md); run the symmetric "
+            "batch in batches/differential_6L/ and update_slab_analysis.py "
+            "first, or point --from-fits at an existing summary.")
     rows = _run_from_fits(args.from_fits, params, args.out_dir)
+    if not rows:
+        raise SystemExit(f"{args.from_fits} contained no usable fit rows.")
     hdr = (f"{'series':26s} {'mode':8s} {'NV axis':9s} "
            f"{'dD (MHz)':>10s} {'E (MHz)':>9s} {'f+ (MHz)':>10s} "
            f"{'f- (MHz)':>10s}")
