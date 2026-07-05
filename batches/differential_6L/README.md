@@ -15,7 +15,7 @@ Matched at 6L:
   C100_1x1_O_ether_6L_sym  ( 6 C + 2 O)
   C110_O_ether_6L_sym      (24 C + 4 O)
 
-Matched at 10L (Pandey splice requires even >= 10 layers):
+## Pandey (111) — REMOVED pending symmetric support
   C111_2x1_pandey_10L_Hbot (20 C + 2 H; H-capped bottom, 2 layers frozen)
   C111_1x1_H_10L_sym       (10 C + 2 H)
 
