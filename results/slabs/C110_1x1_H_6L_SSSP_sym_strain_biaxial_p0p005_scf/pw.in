@@ -1,0 +1,60 @@
+! Strained slab SCF generated from runs/C110_1x1_H_6L_SSSP_sym_stress_scf
+! strain_mode = biaxial; epsilon = +0.005000
+! In-plane lattice/coordinates strained; vacuum direction unchanged.
+&CONTROL
+  tprnfor       = .true.
+  tstress       = .true.
+  calculation   = 'scf'
+  prefix        = 'slab'
+  pseudo_dir    = './'
+  outdir        = './tmp'
+  forc_conv_thr = 1.0d-4
+  etot_conv_thr = 1.0d-5
+/
+
+&SYSTEM
+  ibrav    = 0
+  nat      = 16
+  ntyp     = 2
+  ecutwfc  = 60.0
+  ecutrho  = 480.0
+  occupations = 'smearing'
+  smearing    = 'mv'
+  degauss     = 0.01
+/
+
+&ELECTRONS
+  conv_thr    = 1.0d-8
+  mixing_beta = 0.3
+/
+
+ATOMIC_SPECIES
+  C   12.011  C.pbe-n-kjpaw_psl.1.0.0.UPF
+  H    1.008  H_ONCV_PBE-1.0.oncvpsp.upf
+
+CELL_PARAMETERS angstrom
+      2.5395805089     0.0000000000     0.0000000000
+      0.0000000000    -3.5915092050     0.0000000000
+      0.0000000000     0.0000000000    16.0973270100
+
+ATOMIC_POSITIONS (angstrom)
+  C      0.0000000000    -0.9171452387    11.1811309481
+  C      1.2697902544    -1.7764866650    11.1811309481
+  C      0.0000000000     0.0029206304     9.9461609181
+  C      1.2697902544    -2.6965525341     9.9461609181
+  C      0.0000000000    -0.8972372071     8.6800755388
+  C      1.2697902544    -1.7963946966     8.6800755388
+  C      0.0000000000    -0.0006400941     7.4172514712
+  C      1.2697902544    -2.6929918096     7.4172514712
+  C      0.0000000000    -0.9007979316     6.1511660919
+  C      1.2697902544    -1.7928339721     6.1511660919
+  C      0.0000000000     0.0192679375     4.9161960519
+  C      1.2697902544    -2.7128998412     4.9161960519
+  H      0.0000000000    -0.3146186557    12.1024591581
+  H      1.2697902544    -2.3790132480    12.1024591581
+  H      0.0000000000    -0.5832586455     3.9948678519
+  H      1.2697902544    -2.1103732582     3.9948678519
+
+K_POINTS automatic
+  9 7 1  0 0 0
+! 0 atoms frozen (bottom region) via if_pos flags

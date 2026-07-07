@@ -1,0 +1,7 @@
+{
+  "calculation": "scf",
+  "epsilon": 0.005,
+  "purpose": "in-plane slab strain series for surface-stress fitting",
+  "source": "runs/C111_1x1_H_6L_sym_stress_scf",
+  "strain_mode": "biaxial"
+}

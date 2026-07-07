@@ -110,21 +110,57 @@ def make_one(src_dir, dest_dir):
     return pw_in
 
 
+DEFAULT_ONLY = [
+    "C100_2x1_H_6L_sym",
+    "C110_1x1_H_6L_SSSP_sym",
+    "C111_1x1_H_6L_sym",
+]
+
+
+def resolve_names(results_root, patterns):
+    """Resolve --only patterns to actual result-folder names.
+
+    A pattern that names an existing directory is used as-is. Otherwise it is
+    treated as a substring filter against directories in results_root (e.g.
+    "_sym" selects every folder whose name contains "_sym").
+    """
+    resolved = []
+    for pattern in patterns:
+        if (results_root / pattern).is_dir():
+            resolved.append(pattern)
+            continue
+        matches = sorted(
+            p.name for p in results_root.iterdir() if p.is_dir() and pattern in p.name
+        )
+        if not matches:
+            raise FileNotFoundError(
+                f"--only {pattern!r} did not match any directory in {results_root}"
+            )
+        resolved.extend(matches)
+    # de-duplicate while preserving order
+    seen = set()
+    unique = []
+    for name in resolved:
+        if name not in seen:
+            seen.add(name)
+            unique.append(name)
+    return unique
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--results-root", default="results/slabs")
     ap.add_argument("--runs-root", default="runs")
-    ap.add_argument("--only", action="append", default=[
-        "C100_2x1_H_6L",
-        "C110_1x1_H_6L_SSSP",
-        "C111_1x1_H_6L",
-    ])
+    ap.add_argument("--only", action="append", default=None)
     args = ap.parse_args()
 
     results_root = Path(args.results_root)
     runs_root = Path(args.runs_root)
 
-    for name in args.only:
+    patterns = args.only if args.only is not None else DEFAULT_ONLY
+    names = resolve_names(results_root, patterns)
+
+    for name in names:
         src = results_root / name
         dest = runs_root / f"{name}_stress_scf"
         pw_in = make_one(src, dest)

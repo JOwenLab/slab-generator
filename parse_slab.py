@@ -129,15 +129,39 @@ def parse_pw_out(path):
         "pressure_kbar": None, "stress": {}, "final_force_ry_bohr": None,
         "scf_iterations": None, "ionic_steps": None, "wall_time": None,
         "final_cell_ang": None, "final_positions_ang": [], "warnings": [], "errors": [],
+        "pseudo_files": {}, "relax_converged": None,
     }
 
     if "JOB DONE" in text:
         d["status"] = "JOB DONE"
         d["complete"] = True
 
+    # Ground truth of which pseudopotential file QE actually opened at run
+    # time, independent of whatever the ATOMIC_SPECIES card in pw.in claims
+    # (that card can go stale if pw.in is regenerated after the run).
+    for m in re.finditer(
+        r"PseudoPot\.\s*#\s*\d+\s+for\s+(\S+)\s+read from file:\s*\n\s*(\S+)", text
+    ):
+        sym, fname = m.group(1), m.group(2)
+        if fname.startswith("./"):
+            fname = fname[2:]
+        d["pseudo_files"][sym] = fname
+
     energies = re.findall(r"!\s+total energy\s*=\s*(" + _NUM + r")\s*Ry", text)
     if energies:
         d["energy_ry"] = float(energies[-1])
+
+    # QE 7.x prints a distinct "Final energy" line after BFGS finishes;
+    # prefer it over the last SCF "! total energy" step when present.
+    final_energy = re.search(r"Final energy\s*=\s*(" + _NUM + r")\s*Ry", text)
+    if final_energy:
+        d["energy_ry"] = float(final_energy.group(1))
+
+    if re.search(r"bfgs converged in\s+\d+\s+scf cycles and\s+\d+\s+bfgs steps", text, re.IGNORECASE) \
+            or "End of BFGS Geometry Optimization" in text:
+        d["relax_converged"] = True
+    elif re.search(r"maximum number of steps has been reached", text, re.IGNORECASE):
+        d["relax_converged"] = False
 
     forces = re.findall(r"Total force\s*=\s*(" + _NUM + r")", text)
     if forces:
@@ -299,20 +323,36 @@ def build_row(run_dir, root, ref_cfg, bulk_mu_c_ry):
 
     ref_bulk = ref_cfg.get("bulk_reference", {})
     ref_pseudos = ref_cfg.get("pseudopotentials", {})
-    pseudos = pw_in["pseudopotentials"]
+    # Pseudopotential actually read by QE at run time (from pw.out) is the
+    # ground truth; pw.in's ATOMIC_SPECIES card is only a fallback for runs
+    # that haven't produced output yet, since it can go stale if pw.in is
+    # regenerated after the calculation completed.
+    pseudos_declared = pw_in["pseudopotentials"]
+    pseudos = dict(pw_out["pseudo_files"]) if pw_out["pseudo_files"] else dict(pseudos_declared)
     expected_c = ref_pseudos.get("C")
     pseudo_notes = []
     if expected_c and pseudos.get("C") != expected_c:
         pseudo_notes.append("C_pseudo_mismatch")
-    if n_h and pseudos.get("H") != "H_ONCV_PBE-1.0.oncvpsp.upf":
-        pseudo_notes.append("H_pseudo_not_project_SSSP")
+
+    cutoff_notes = []
     if pw_in["ecutwfc"] is not None and pw_in["ecutwfc"] < 80:
-        pseudo_notes.append("ecutwfc_below_reference")
+        cutoff_notes.append("ecutwfc_below_reference")
     if pw_in["ecutrho"] is not None and pw_in["ecutrho"] < 640:
-        pseudo_notes.append("ecutrho_below_reference")
+        cutoff_notes.append("ecutrho_below_reference")
+
+    stale_pwin_notes = []
+    for sym, used in pseudos.items():
+        declared = pseudos_declared.get(sym)
+        if declared and declared != used:
+            stale_pwin_notes.append(
+                f"pw.in declares {sym}:{declared} but pw.out shows {sym}:{used} was actually read"
+            )
 
     surface_status = "not_computed_missing_H_chemical_potential" if n_h else "not_computed"
-    needs_attention = bool(pw_out["errors"] or pseudo_notes or not pw_out["complete"])
+    needs_attention = bool(
+        pw_out["errors"] or pseudo_notes or not pw_out["complete"]
+        or pw_out["relax_converged"] is False
+    )
 
     return {
         "run_path": str(run_dir),
@@ -333,6 +373,9 @@ def build_row(run_dir, root, ref_cfg, bulk_mu_c_ry):
         "species": " ".join(pw_in["species"]),
         "pseudopotentials": "; ".join(f"{k}:{v}" for k, v in sorted(pseudos.items())),
         "pseudo_consistency": "ok" if not pseudo_notes else "; ".join(pseudo_notes),
+        "cutoff_notes": "; ".join(cutoff_notes),
+        "relax_converged": pw_out["relax_converged"],
+        "_pseudo_h_used": pseudos.get("H") if n_h else None,
         "functional_reference": ref_cfg.get("functional"),
         "pseudo_set_reference": ref_cfg.get("pseudo_set"),
         "a0_reference_angstrom": ref_bulk.get("a0_fit_angstrom"),
@@ -364,7 +407,7 @@ def build_row(run_dir, root, ref_cfg, bulk_mu_c_ry):
         "scf_iterations": pw_out["scf_iterations"],
         "ionic_steps": pw_out["ionic_steps"],
         "wall_time": pw_out["wall_time"],
-        "warnings": "; ".join(pw_out["warnings"]),
+        "warnings": "; ".join(pw_out["warnings"] + stale_pwin_notes),
         "errors": "; ".join(pw_out["errors"]),
     }
 
@@ -373,7 +416,8 @@ FIELDNAMES = [
     "run_path", "folder_name", "status", "complete", "needs_attention",
     "orientation", "termination", "layers", "calculation_type", "formula",
     "nat", "ntyp", "n_C", "n_H", "n_other", "species", "pseudopotentials",
-    "pseudo_consistency", "functional_reference", "pseudo_set_reference",
+    "pseudo_consistency", "cutoff_notes", "relax_converged",
+    "functional_reference", "pseudo_set_reference",
     "a0_reference_angstrom", "bulk_modulus_reference_gpa",
     "energy_ry", "energy_ev", "energy_per_atom_ry", "energy_per_atom_ev",
     "energy_per_C_ry", "bulk_reference_energy_per_C_ry",
@@ -452,6 +496,30 @@ def fmt(value, ndigits):
     return f"{value:.{ndigits}f}"
 
 
+def resolve_h_pseudo_consistency(rows):
+    """Flag H-pseudo mismatches across the batch and drop the scratch key.
+
+    There is no single "correct" H pseudopotential in the bulk reference
+    config (bulk diamond has no hydrogen), so consistency for H-terminated
+    slabs is judged against the pseudo actually used (per pw.out) by the
+    majority of completed H-terminated runs in this batch.
+    """
+    votes = {}
+    for r in rows:
+        h = r.get("_pseudo_h_used")
+        if r["complete"] and h:
+            votes[h] = votes.get(h, 0) + 1
+    expected_h = max(votes, key=votes.get) if votes else None
+
+    for r in rows:
+        h = r.pop("_pseudo_h_used", None)
+        if expected_h and h and h != expected_h:
+            notes = [] if r["pseudo_consistency"] == "ok" else r["pseudo_consistency"].split("; ")
+            notes.append("H_pseudo_mismatch")
+            r["pseudo_consistency"] = "; ".join(notes)
+            r["needs_attention"] = True
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default="results/slabs")
@@ -472,6 +540,7 @@ def main():
             rows.append(row)
 
     rows.sort(key=lambda r: r["folder_name"])
+    resolve_h_pseudo_consistency(rows)
     csv_path, json_path, md_path = write_outputs(rows, outdir)
 
     print(f"Parsed slab calculations: {len(rows)}")

@@ -296,7 +296,7 @@ def to_cif(slab, vacuum, comment):
 
 
 QE_PSEUDO = {"C": ("12.011", "C.pbe-n-kjpaw_psl.1.0.0.UPF"),
-             "H": ("1.008",  "H.pbe-kjpaw_psl.1.0.0.UPF"),
+             "H": ("1.008",  "H_ONCV_PBE-1.0.oncvpsp.upf"),
              "O": ("15.999", "O.pbe-n-kjpaw_psl.1.0.0.UPF"),
              "F": ("18.998", "F.pbe-n-kjpaw_psl.1.0.0.UPF")}
 

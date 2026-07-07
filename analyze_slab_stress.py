@@ -29,6 +29,8 @@ FIELDS = [
     "termination",
     "formula",
     "pseudo_consistency",
+    "cutoff_notes",
+    "relax_converged",
     "complete",
     "needs_attention",
     "cell_area_angstrom2",
@@ -114,11 +116,18 @@ def analyze_row(row):
         else:
             interpretation = "near_zero_inplane_mean_stress"
 
+    # relax_converged is a tri-state written by parse_slab.py: "True"/"False"
+    # for relax runs, "" (not applicable) for scf-only runs such as the
+    # stress_scf reruns.
+    relax_not_converged = str(row.get("relax_converged")).strip().lower() == "false"
+
     relevance = "use_for_clean_H_baseline"
-    if row.get("pseudo_consistency") != "ok":
-        relevance = "exclude_from_comparison_pseudo_mismatch"
-    elif not truthy(row.get("complete")):
+    if not truthy(row.get("complete")):
         relevance = "exclude_incomplete"
+    elif row.get("pseudo_consistency") != "ok":
+        relevance = "exclude_from_comparison_pseudo_mismatch"
+    elif relax_not_converged:
+        relevance = "exclude_relaxation_not_converged"
 
     return {
         "folder_name": row.get("folder_name"),
@@ -126,6 +135,8 @@ def analyze_row(row):
         "termination": row.get("termination"),
         "formula": row.get("formula"),
         "pseudo_consistency": row.get("pseudo_consistency"),
+        "cutoff_notes": row.get("cutoff_notes"),
+        "relax_converged": row.get("relax_converged"),
         "complete": row.get("complete"),
         "needs_attention": row.get("needs_attention"),
         "cell_area_angstrom2": row.get("cell_area_angstrom2"),
