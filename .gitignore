@@ -19,3 +19,6 @@ __pycache__/
 # Editor
 .vscode/
 *.swp
+
+.Rhistory
+queue_status.csv

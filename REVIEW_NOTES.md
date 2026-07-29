@@ -72,10 +72,14 @@ physics results:
    literature-transcription step. Always run `transcribe_petukhov.py`
    afterward — that's the intended order.
 
-8. **Minor:** the NV prediction code currently takes diamond's elastic
-   constants from the literature rather than from our own DFT. That's
-   acceptable for now; computing them ourselves later (two small extra
-   bulk calculations) would make the chain fully self-contained.
+8. **Minor:** a0 and the fitted bulk modulus B are loaded from the project
+   bulk reference (`config/reference_pbe_sssp.json`, via `elastic_reference.py`).
+   The full cubic C11/C12/C44 tensor is loaded through the same validated
+   interface, but its current values are still literature-sourced (a
+   hydrostatic fit determines B, not the full tensor) pending a future DFT
+   elastic-tensor campaign — see the "Elastic reference" section of
+   `README.md`. That's acceptable for now; once that campaign runs, its
+   output slots into the same config without touching `nv_spin_strain.py`.
 
 ## Part 2 — Recommended next steps, in order
 

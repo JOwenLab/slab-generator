@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """
-analyze_slab_stress.py - Estimate vacuum-corrected slab surface stress.
+analyze_slab_stress.py - Compute vacuum-corrected slab surface stress.
 
-Reads results/slabs/slab_summary.csv from parse_slab.py and converts the
-cell-averaged QE stress tensor into approximate 2D surface stress:
+Reads results/slabs/slab_summary.csv from parse_slab.py. QE reports stress
+averaged over the full periodic supercell (slab + vacuum), so its magnitude
+depends on the arbitrary vacuum thickness; this script converts it into the
+vacuum-independent 2D surface stress:
 
-    tau_ij = sigma_ij * Lz / 2
+    tau_ij = sigma_ij * Lz * 0.005   (Lz = cell height, Angstrom; result N/m)
 
-where Lz is the slab supercell height and 2 accounts for the two slab faces.
-This is a first diagnostic for surface-induced lattice pressure/strain. A
-proper surface-stress fit should later use explicit in-plane strain series.
+(0.005 = 0.1 GPa/kbar * 0.1 N/m per GPa*Angstrom / 2 surfaces). tau_ij is the
+physically intrinsic surface quantity and the primary output of this script;
+sigma_ij is retained as a diagnostic, vacuum-dependent cross-check. See
+fit_slab_strain.py for the strain-series fit of both.
 """
 
 import argparse

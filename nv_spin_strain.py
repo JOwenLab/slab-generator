@@ -39,9 +39,12 @@ import csv
 import json
 import math
 import os
+import sys
 from dataclasses import dataclass, field
 
 import numpy as np
+
+import elastic_reference
 
 # ----------------------------------------------------------------- constants
 D0_MHZ = 2870.0  # zero-field splitting of the unperturbed NV, MHz
@@ -99,7 +102,9 @@ PARAM_SETS["barson"] = BARSON_SCALED
 
 @dataclass(frozen=True)
 class ElasticConstants:
-    """Cubic stiffness of diamond, GPa (Kaxiras values used in the paper)."""
+    """Cubic stiffness of diamond, GPa. Defaults are the legacy literature
+    values also recorded in config/reference_pbe_sssp.json; the CLI sources
+    actual values through elastic_reference.py rather than these defaults."""
     C11: float = 1076.0
     C12: float = 125.0
     C44: float = 576.0
@@ -252,8 +257,150 @@ def predict_for_slab(face: str, exx: float, eyy: float, exy: float = 0.0,
 
 
 # --------------------------------------------------------------------- CLI
-def _run_from_fits(csv_path: str, params: SpinStrainParams,
-                   out_dir: str) -> list[dict]:
+def resolve_elastic_context(args) -> tuple[ElasticConstants, dict]:
+    """Resolve which C11/C12/C44 to use and build a provenance dict for
+    output/reporting. Precedence: CLI override > reference config > explicit
+    legacy fallback (never a silent default)."""
+    override_vals = [args.C11, args.C12, args.C44]
+    override_used = any(v is not None for v in override_vals)
+    if override_used and not all(v is not None for v in override_vals):
+        raise SystemExit("--C11, --C12, and --C44 must all be supplied together")
+
+    ref = None
+    ref_error = None
+    try:
+        ref = elastic_reference.load_elastic_reference(
+            args.reference_config, warning_threshold_pct=args.warning_threshold_pct)
+    except elastic_reference.ElasticReferenceError as exc:
+        ref_error = exc
+
+    if override_used:
+        elastic_reference.validate_cubic_tensor(
+            args.C11, args.C12, args.C44, "--C11/--C12/--C44")
+        elastic = ElasticConstants(args.C11, args.C12, args.C44)
+        b_tensor = (args.C11 + 2 * args.C12) / 3.0
+        provenance = {
+            "elastic_source_type": "cli_override",
+            "elastic_citation": "user-supplied via --C11/--C12/--C44",
+            "elastic_config_path": ref.config_path if ref else "",
+            "cli_override_used": True,
+            "a0_angstrom": ref.bulk.a0_angstrom if ref else None,
+            "bulk_modulus_fit_gpa": ref.bulk.bulk_modulus_gpa if ref else None,
+            "bulk_modulus_tensor_gpa": b_tensor,
+            "bulk_modulus_discrepancy_gpa": None,
+            "bulk_modulus_discrepancy_pct": None,
+            "warning_threshold_pct": args.warning_threshold_pct,
+            "consistent": None,
+        }
+        if ref:
+            diff = b_tensor - ref.bulk.bulk_modulus_gpa
+            provenance["bulk_modulus_discrepancy_gpa"] = diff
+            provenance["bulk_modulus_discrepancy_pct"] = 100.0 * diff / ref.bulk.bulk_modulus_gpa
+            provenance["consistent"] = abs(provenance["bulk_modulus_discrepancy_pct"]) <= args.warning_threshold_pct
+        return elastic, provenance
+
+    if args.elastic_source == "legacy":
+        print("WARNING: --elastic-source legacy bypasses the validated reference "
+              "config; using hardcoded literature elastic constants "
+              "(C11=1076, C12=125, C44=576 GPa). This is not project-derived "
+              "DFT data.", file=sys.stderr)
+        elastic = ElasticConstants()
+        provenance = {
+            "elastic_source_type": "legacy_hardcoded",
+            "elastic_citation": "hardcoded literature defaults (pre-config)",
+            "elastic_config_path": "",
+            "cli_override_used": False,
+            "a0_angstrom": None,
+            "bulk_modulus_fit_gpa": None,
+            "bulk_modulus_tensor_gpa": (elastic.C11 + 2 * elastic.C12) / 3.0,
+            "bulk_modulus_discrepancy_gpa": None,
+            "bulk_modulus_discrepancy_pct": None,
+            "warning_threshold_pct": args.warning_threshold_pct,
+            "consistent": None,
+        }
+        return elastic, provenance
+
+    if ref is None:
+        raise SystemExit(
+            f"Could not load elastic reference from {args.reference_config}: {ref_error}\n"
+            "Pass --reference-config to point at a valid config, or pass "
+            "--elastic-source legacy to explicitly use hardcoded literature constants.")
+
+    elastic = ElasticConstants(ref.tensor.C11, ref.tensor.C12, ref.tensor.C44)
+    provenance = {
+        "elastic_source_type": ref.tensor.source_type,
+        "elastic_citation": ref.tensor.citation,
+        "elastic_config_path": ref.config_path,
+        "cli_override_used": False,
+        "a0_angstrom": ref.bulk.a0_angstrom,
+        "bulk_modulus_fit_gpa": ref.bulk.bulk_modulus_gpa,
+        "bulk_modulus_tensor_gpa": ref.b_tensor_gpa,
+        "bulk_modulus_discrepancy_gpa": ref.b_discrepancy_gpa,
+        "bulk_modulus_discrepancy_pct": ref.b_discrepancy_pct,
+        "warning_threshold_pct": ref.warning_threshold_pct,
+        "consistent": ref.consistent,
+    }
+    return elastic, provenance
+
+
+def _format_elastic_reference_section(elastic: ElasticConstants, prov: dict) -> list[str]:
+    lines = ["## Elastic reference", ""]
+
+    if prov["a0_angstrom"] is not None:
+        lines += [
+            "**Lattice constant:**",
+            f"  {prov['a0_angstrom']:.6f} Å",
+            "  source: project PBE/SSSP bulk fit",
+            "",
+        ]
+
+    if prov["bulk_modulus_fit_gpa"] is not None:
+        lines += [
+            "**Hydrostatic bulk modulus:**",
+            f"  {prov['bulk_modulus_fit_gpa']:.1f} GPa",
+            "  source: project PBE/SSSP bulk fit",
+            "",
+        ]
+
+    lines += [
+        "**Cubic stiffness tensor:**",
+        f"  C11 = {elastic.C11:.1f} GPa",
+        f"  C12 = {elastic.C12:.1f} GPa",
+        f"  C44 = {elastic.C44:.1f} GPa",
+        f"  source: {prov['elastic_source_type']}"
+        + (f" ({prov['elastic_citation']})" if prov["elastic_citation"] else ""),
+        "",
+        "**Tensor-implied bulk modulus:**",
+        f"  {prov['bulk_modulus_tensor_gpa']:.1f} GPa",
+        "",
+    ]
+
+    if prov["bulk_modulus_discrepancy_gpa"] is not None:
+        lines += [
+            "**Difference from project hydrostatic fit:**",
+            f"  {prov['bulk_modulus_discrepancy_gpa']:+.1f} GPa "
+            f"({prov['bulk_modulus_discrepancy_pct']:+.1f}%)",
+            "",
+        ]
+
+    mixed = prov["elastic_source_type"] != "project_dft_fit"
+    status = ("mixed-source elastic reference; full DFT Cij not yet computed" if mixed
+               else "fully project-derived elastic reference")
+    lines += [
+        "**Status:**",
+        f"  {status}",
+        f"  CLI override used: {prov['cli_override_used']}",
+        f"  config: {prov['elastic_config_path'] or '(none — legacy fallback)'}",
+        "",
+        "See `nv_spin_strain.py` for the authoritative exact NV physics model; "
+        "`nv_strain_model.py` is a screening tool only.",
+        "",
+    ]
+    return lines
+
+
+def _run_from_fits(csv_path: str, params: SpinStrainParams, out_dir: str,
+                   elastic: ElasticConstants, elastic_provenance: dict) -> list[dict]:
     rows = []
     with open(csv_path, newline="") as fh:
         for rec in csv.DictReader(fh):
@@ -268,12 +415,16 @@ def _run_from_fits(csv_path: str, params: SpinStrainParams,
             else:
                 continue
             face = rec["orientation"].strip("()")
-            for pred in predict_for_slab(face, exx, eyy, params=params):
+            for pred in predict_for_slab(face, exx, eyy, params=params, elastic=elastic):
                 rows.append({
                     "series": rec["series"], "face": rec["orientation"],
                     "termination": rec["termination"], "strain_mode": mode,
                     "eps_inplane": eps0, "fit_status": rec["fit_status"],
                     "param_set": params.name, **pred,
+                    "elastic_source_type": elastic_provenance["elastic_source_type"],
+                    "elastic_C11_gpa": elastic.C11,
+                    "elastic_C12_gpa": elastic.C12,
+                    "elastic_C44_gpa": elastic.C44,
                 })
     os.makedirs(out_dir, exist_ok=True)
     out_csv = os.path.join(out_dir, "nv_predictions.csv")
@@ -290,8 +441,25 @@ def main() -> None:
                     default="results/slabs/slab_strain_fit_summary.csv")
     ap.add_argument("--params", choices=sorted(PARAM_SETS), default="dft")
     ap.add_argument("--out-dir", default="results/nv")
+    ap.add_argument("--reference-config", default="config/reference_pbe_sssp.json",
+                    help="Authoritative bulk/elastic reference config "
+                         "(see elastic_reference.py).")
+    ap.add_argument("--elastic-source", choices=["config", "legacy"], default="config",
+                    help="'config' (default) loads C11/C12/C44 from --reference-config; "
+                         "'legacy' explicitly bypasses it for hardcoded literature values.")
+    ap.add_argument("--C11", type=float, default=None, metavar="GPA")
+    ap.add_argument("--C12", type=float, default=None, metavar="GPA")
+    ap.add_argument("--C44", type=float, default=None, metavar="GPA")
+    ap.add_argument("--warning-threshold-pct", type=float,
+                    default=elastic_reference.DEFAULT_WARNING_THRESHOLD_PCT,
+                    help="Warn (not fail) if the tensor-implied bulk modulus "
+                         "differs from the project hydrostatic fit by more "
+                         "than this percent.")
     args = ap.parse_args()
+
     params = PARAM_SETS[args.params]
+    elastic, provenance = resolve_elastic_context(args)
+
     if not os.path.exists(args.from_fits):
         raise SystemExit(
             f"No strain-fit summary at {args.from_fits}.\n"
@@ -299,19 +467,43 @@ def main() -> None:
             "results/archive_asymmetric_6L/README.md); run the symmetric "
             "batch in batches/differential_6L/ and update_slab_analysis.py "
             "first, or point --from-fits at an existing summary.")
-    rows = _run_from_fits(args.from_fits, params, args.out_dir)
+    rows = _run_from_fits(args.from_fits, params, args.out_dir, elastic, provenance)
     if not rows:
         raise SystemExit(f"{args.from_fits} contained no usable fit rows.")
+
+    out_dir = args.out_dir
+    os.makedirs(out_dir, exist_ok=True)
+
+    meta_path = os.path.join(out_dir, "nv_predictions_meta.json")
+    with open(meta_path, "w") as fh:
+        json.dump({
+            "param_set": params.name,
+            "param_set_reference": params.reference,
+            **provenance,
+        }, fh, indent=2)
+
+    report_path = os.path.join(out_dir, "nv_predictions_report.md")
+    with open(report_path, "w") as fh:
+        fh.write("\n".join(
+            ["# NV Spin-Strain Predictions", "",
+             f"Spin-strain parameters: {params.name} ({params.reference})", ""]
+            + _format_elastic_reference_section(elastic, provenance)
+        ) + "\n")
+
     hdr = (f"{'series':26s} {'mode':8s} {'NV axis':9s} "
            f"{'dD (MHz)':>10s} {'E (MHz)':>9s} {'f+ (MHz)':>10s} "
            f"{'f- (MHz)':>10s}")
     print(f"# spin-strain parameters: {params.name} ({params.reference})")
+    print(f"# elastic reference: {provenance['elastic_source_type']} "
+          f"(C11={elastic.C11:.1f}, C12={elastic.C12:.1f}, C44={elastic.C44:.1f} GPa)")
     print(hdr)
     for r in rows:
         print(f"{r['series']:26s} {r['strain_mode']:8s} {r['nv_axis']:9s} "
               f"{r['delta_D_mhz']:10.2f} {r['E_mhz']:9.2f} "
               f"{r['f_plus_mhz']:10.1f} {r['f_minus_mhz']:10.1f}")
     print(f"\nwrote {os.path.join(args.out_dir, 'nv_predictions.csv')}")
+    print(f"wrote {meta_path}")
+    print(f"wrote {report_path}")
 
 
 if __name__ == "__main__":

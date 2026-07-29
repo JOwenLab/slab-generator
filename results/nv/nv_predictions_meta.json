@@ -1,0 +1,15 @@
+{
+  "param_set": "udvarhelyi2018_dft",
+  "param_set_reference": "Udvarhelyi et al., PRB 98, 075201 (2018), Table I",
+  "elastic_source_type": "literature",
+  "elastic_citation": "Diamond cubic stiffness constants as used by Udvarhelyi, Shkolnikov, Gali, Burkard & Palyi, Phys. Rev. B 98, 075201 (2018), attributed therein to E. Kaxiras, Atomic and Electronic Structure of Solids (Cambridge University Press, 2003).",
+  "elastic_config_path": "config/reference_pbe_sssp.json",
+  "cli_override_used": false,
+  "a0_angstrom": 3.573641,
+  "bulk_modulus_fit_gpa": 445.116,
+  "bulk_modulus_tensor_gpa": 442.0,
+  "bulk_modulus_discrepancy_gpa": -3.1159999999999854,
+  "bulk_modulus_discrepancy_pct": -0.700042236181127,
+  "warning_threshold_pct": 7.5,
+  "consistent": true
+}

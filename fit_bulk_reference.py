@@ -28,6 +28,8 @@ import math
 import sys
 from pathlib import Path
 
+import elastic_reference
+
 # ── Physical constants ────────────────────────────────────────────────────────
 RY_TO_EV    = 13.605693122994
 KBAR_TO_GPA = 0.1
@@ -582,6 +584,12 @@ Examples:
         "--no-plots", action="store_true",
         help="Skip matplotlib plot generation",
     )
+    parser.add_argument(
+        "--update-config", metavar="JSON",
+        help="Write the fitted a0/bulk modulus into this reference config "
+             "(e.g. config/reference_pbe_sssp.json). Elastic tensor (C11/C12/C44) "
+             "and citation are left untouched. Not run by default.",
+    )
     args = parser.parse_args()
 
     csv_path = Path(args.input)
@@ -663,6 +671,24 @@ Examples:
                 print(f"  Plot:     {pp}")
     else:
         print("  (plots skipped — --no-plots)")
+
+    if args.update_config:
+        elastic_reference.update_bulk_reference(
+            args.update_config,
+            a0_angstrom=results["a0_energy_volume_fit_angstrom"],
+            bulk_modulus_gpa=results["bulk_modulus_gpa"],
+            source_summary_json=str(json_out),
+            extra_fields={
+                "a0_energy_fit_angstrom": results["a0_energy_fit_angstrom"],
+                "a0_pressure_fit_angstrom": results["a0_pressure_fit_angstrom"],
+                "epsilon0_energy_fit": results["epsilon0_energy_fit"],
+                "epsilon0_pressure_fit": results["epsilon0_pressure_fit"],
+                "fit_status": results["consistency_status"],
+                "fit_method": "energy_volume_quadratic_min",
+            },
+        )
+        print(f"  Updated config: {args.update_config} (a0, bulk_modulus_gpa only; "
+              "elastic_tensor untouched)")
 
     print()
 

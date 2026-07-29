@@ -5,8 +5,10 @@
     "fit_status": "good",
     "formula": "C24H8",
     "n_points": 5,
+    "n_tau_points": 5,
     "orientation": "(100)",
     "r2_stress_fit": 0.9993452430891897,
+    "r2_tau_fit": 0.9993452430891897,
     "series": "C100_2x1_H_6L_sym",
     "strain_mode": "biaxial",
     "stress_at_zero_kbar": -21.366999999999997,
@@ -17,7 +19,9 @@
     "tau_slope_n_per_m_per_eps": -311.71994651968004,
     "termination": "H",
     "warnings": "",
-    "zero_stress_epsilon": -0.004969994417566057
+    "zero_strain_discrepancy": 8.673617379884035e-19,
+    "zero_stress_epsilon": -0.004969994417566057,
+    "zero_tau_strain": -0.004969994417566058
   },
   {
     "epsilon_max": 0.01,
@@ -25,8 +29,10 @@
     "fit_status": "good",
     "formula": "C24H8",
     "n_points": 5,
+    "n_tau_points": 5,
     "orientation": "(100)",
     "r2_stress_fit": 0.9996009875275697,
+    "r2_tau_fit": 0.9996009875275697,
     "series": "C100_2x1_H_6L_sym",
     "strain_mode": "x",
     "stress_at_zero_kbar": -21.926,
@@ -37,7 +43,9 @@
     "tau_slope_n_per_m_per_eps": -159.49979957992,
     "termination": "H",
     "warnings": "",
-    "zero_stress_epsilon": -0.009967269751795618
+    "zero_strain_discrepancy": 1.734723475976807e-18,
+    "zero_stress_epsilon": -0.009967269751795618,
+    "zero_tau_strain": -0.00996726975179562
   },
   {
     "epsilon_max": 0.01,
@@ -45,8 +53,10 @@
     "fit_status": "warning",
     "formula": "C24H8",
     "n_points": 5,
+    "n_tau_points": 5,
     "orientation": "(100)",
     "r2_stress_fit": 0.9995813280485045,
+    "r2_tau_fit": 0.9995813280485045,
     "series": "C100_2x1_H_6L_sym",
     "strain_mode": "y",
     "stress_at_zero_kbar": -21.935000000000002,
@@ -57,7 +67,9 @@
     "tau_slope_n_per_m_per_eps": -152.1186378392,
     "termination": "H",
     "warnings": "zero_stress_outside_sampled_range",
-    "zero_stress_epsilon": -0.01045519542421354
+    "zero_strain_discrepancy": 1.734723475976807e-18,
+    "zero_stress_epsilon": -0.01045519542421354,
+    "zero_tau_strain": -0.010455195424213538
   },
   {
     "epsilon_max": 0.01,
@@ -65,8 +77,10 @@
     "fit_status": "good",
     "formula": "C12H4",
     "n_points": 5,
+    "n_tau_points": 5,
     "orientation": "(110)",
     "r2_stress_fit": 0.9992892076342944,
+    "r2_tau_fit": 0.9992892076342944,
     "series": "C110_1x1_H_6L_SSSP_sym",
     "strain_mode": "biaxial",
     "stress_at_zero_kbar": 38.134,
@@ -77,7 +91,9 @@
     "tau_slope_n_per_m_per_eps": -485.17343608140004,
     "termination": "H",
     "warnings": "",
-    "zero_stress_epsilon": 0.006326144658261447
+    "zero_strain_discrepancy": 8.673617379884035e-19,
+    "zero_stress_epsilon": 0.006326144658261447,
+    "zero_tau_strain": 0.006326144658261448
   },
   {
     "epsilon_max": 0.01,
@@ -85,8 +101,10 @@
     "fit_status": "warning",
     "formula": "C12H4",
     "n_points": 5,
+    "n_tau_points": 5,
     "orientation": "(110)",
     "r2_stress_fit": 0.9995996009050225,
+    "r2_tau_fit": 0.9995996009050225,
     "series": "C110_1x1_H_6L_SSSP_sym",
     "strain_mode": "x",
     "stress_at_zero_kbar": 37.316,
@@ -97,7 +115,9 @@
     "tau_slope_n_per_m_per_eps": -256.6155385299151,
     "termination": "H",
     "warnings": "zero_stress_outside_sampled_range",
-    "zero_stress_epsilon": 0.011704042906878272
+    "zero_strain_discrepancy": 1.734723475976807e-18,
+    "zero_stress_epsilon": 0.011704042906878272,
+    "zero_tau_strain": 0.011704042906878273
   },
   {
     "epsilon_max": 0.01,
@@ -105,8 +125,10 @@
     "fit_status": "warning",
     "formula": "C12H4",
     "n_points": 5,
+    "n_tau_points": 5,
     "orientation": "(110)",
     "r2_stress_fit": 0.9998723556143848,
+    "r2_tau_fit": 0.9998723556143848,
     "series": "C110_1x1_H_6L_SSSP_sym",
     "strain_mode": "y",
     "stress_at_zero_kbar": 37.047000000000004,
@@ -117,7 +139,9 @@
     "tau_slope_n_per_m_per_eps": -228.18765903025508,
     "termination": "H",
     "warnings": "zero_stress_outside_sampled_range",
-    "zero_stress_epsilon": 0.013067263941307184
+    "zero_strain_discrepancy": 0.0,
+    "zero_stress_epsilon": 0.013067263941307184,
+    "zero_tau_strain": 0.013067263941307184
   },
   {
     "epsilon_max": 0.01,
@@ -125,8 +149,10 @@
     "fit_status": "good",
     "formula": "C6H2",
     "n_points": 5,
+    "n_tau_points": 5,
     "orientation": "(111)",
     "r2_stress_fit": 0.9991567707427524,
+    "r2_tau_fit": 0.9991567707427524,
     "series": "C111_1x1_H_6L_sym",
     "strain_mode": "biaxial",
     "stress_at_zero_kbar": 4.506000000000002,
@@ -137,6 +163,8 @@
     "tau_slope_n_per_m_per_eps": -395.44403071536004,
     "termination": "H",
     "warnings": "",
-    "zero_stress_epsilon": 0.0008444844259529972
+    "zero_strain_discrepancy": 2.168404344971009e-19,
+    "zero_stress_epsilon": 0.0008444844259529972,
+    "zero_tau_strain": 0.0008444844259529974
   }
 ]

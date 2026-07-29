@@ -25,13 +25,26 @@
     "epsilon0_pressure_fit": 0.001922336232058496,
     "bulk_modulus_gpa": 445.116,
     "fit_status": "consistent",
+    "source_type": "project_dft_fit",
+    "fit_method": "energy_volume_quadratic_min",
     "source_summary_csv": "results/reference_diamond/bulk_fit_summary.csv",
     "source_summary_json": "results/reference_diamond/bulk_fit_summary.json",
     "source_report": "results/reference_diamond/bulk_fit_report.md"
   },
+  "elastic_tensor": {
+    "symmetry": "cubic",
+    "units": "GPa",
+    "C11": 1076.0,
+    "C12": 125.0,
+    "C44": 576.0,
+    "source_type": "literature",
+    "citation": "Diamond cubic stiffness constants as used by Udvarhelyi, Shkolnikov, Gali, Burkard & Palyi, Phys. Rev. B 98, 075201 (2018), attributed therein to E. Kaxiras, Atomic and Electronic Structure of Solids (Cambridge University Press, 2003).",
+    "notes": "The project's hydrostatic five-point bulk fit (bulk_reference.bulk_modulus_gpa) determines only B = (C11 + 2*C12)/3; it cannot independently determine C11, C12, and C44. These three values are literature-sourced pending a future DFT elastic-tensor campaign (independent strain modes; see PLAN_nv_strain_campaign.md). Do not treat them as project-derived DFT data."
+  },
   "notes": [
     "Use this fitted lattice constant as the default bulk PBE/SSSP reference for future slab and strain calculations.",
     "Do not commit UPF pseudopotential files.",
-    "For slab surface-energy subtraction, use strain-matched bulk references rather than only the unstrained reference."
+    "For slab surface-energy subtraction, use strain-matched bulk references rather than only the unstrained reference.",
+    "elastic_tensor.C11/C12/C44 are literature-sourced, not fitted from this project's DFT; see elastic_tensor.notes."
   ]
 }
