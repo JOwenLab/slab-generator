@@ -1,0 +1,29 @@
+&CONTROL
+  calculation = 'relax'
+  prefix = 'h2'
+  pseudo_dir = './'
+  outdir = '/tmp/qe'
+  tprnfor = .true.
+  forc_conv_thr = 1.0d-5
+  etot_conv_thr = 1.0d-6
+/
+&SYSTEM
+  ibrav = 1
+  celldm(1) = 20.0
+  nat = 2
+  ntyp = 1
+  ecutwfc = 90.0
+  ecutrho = 720.0
+  occupations = 'fixed'
+/
+&ELECTRONS
+  conv_thr = 1.0d-10
+/
+&IONS
+/
+ATOMIC_SPECIES
+  H  1.00794  H_ONCV_PBE-1.0.oncvpsp.upf
+ATOMIC_POSITIONS angstrom
+  H  0.000  0.000  0.000
+  H  0.000  0.000  0.740
+K_POINTS gamma

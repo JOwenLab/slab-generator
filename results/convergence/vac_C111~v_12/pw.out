@@ -395,4 +395,63 @@
 
 
      Writing all to output data dir /tmp/qe/slab.save/ :
-     XML data file, charge density, pseudopotentials
+     XML data file, charge density, pseudopotentials, collected wavefunctions
+
+     init_run     :      4.57s CPU     42.30s WALL (       1 calls)
+     electrons    :    110.40s CPU   1021.96s WALL (       1 calls)
+     forces       :      0.91s CPU      8.32s WALL (       1 calls)
+     stress       :      0.98s CPU      8.85s WALL (       1 calls)
+
+     Called by init_run:
+     wfcinit      :      3.30s CPU     30.80s WALL (       1 calls)
+     potinit      :      0.44s CPU      3.95s WALL (       1 calls)
+     hinit0       :      0.20s CPU      1.92s WALL (       1 calls)
+
+     Called by electrons:
+     c_bands      :     88.97s CPU    820.54s WALL (      12 calls)
+     sum_band     :     13.14s CPU    124.11s WALL (      12 calls)
+     v_of_rho     :      1.93s CPU     17.50s WALL (      13 calls)
+     newd         :      0.51s CPU      4.76s WALL (      13 calls)
+     PAW_pot      :      1.24s CPU     11.32s WALL (      13 calls)
+     mix_rho      :      3.76s CPU     35.92s WALL (      12 calls)
+
+     Called by c_bands:
+     init_us_2    :      0.13s CPU      0.13s WALL (     324 calls)
+     cegterg      :     86.36s CPU    797.04s WALL (     144 calls)
+
+     Called by *egterg:
+     cdiaghg      :      2.82s CPU     27.89s WALL (     599 calls)
+     h_psi        :     64.96s CPU    597.99s WALL (     611 calls)
+     s_psi        :      0.10s CPU      0.10s WALL (     611 calls)
+     g_psi        :      0.02s CPU      0.02s WALL (     455 calls)
+
+     Called by h_psi:
+     h_psi:calbec :      8.27s CPU     75.94s WALL (     611 calls)
+     vloc_psi     :     56.53s CPU    521.90s WALL (     611 calls)
+     add_vuspsi   :      0.14s CPU      0.14s WALL (     611 calls)
+
+     General routines
+     calbec       :     11.04s CPU    102.24s WALL (     815 calls)
+     fft          :      1.18s CPU     11.89s WALL (     192 calls)
+     ffts         :      0.22s CPU      2.17s WALL (      25 calls)
+     fftw         :     65.83s CPU    619.06s WALL (   15724 calls)
+     interpolate  :      0.23s CPU      2.20s WALL (      13 calls)
+
+     Parallel routines
+
+     PWSCF        :   2m16.17s CPU  20m59.18s WALL
+
+
+   This run was terminated on:  13: 9:21   1Aug2026            
+
+=------------------------------------------------------------------------------=
+   JOB DONE.
+=------------------------------------------------------------------------------=
+Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL
+Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL
+Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL
+Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL
+Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL
+Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL
+Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL
+Note: The following floating-point exceptions are signalling: IEEE_UNDERFLOW_FLAG IEEE_DENORMAL
