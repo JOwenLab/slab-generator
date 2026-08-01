@@ -27,6 +27,12 @@ from __future__ import annotations
 import numpy as np
 from dataclasses import dataclass, field
 
+
+class GeometryError(Exception):
+    """A load-bearing geometric invariant was violated (finite coordinates,
+    symmetry, coordination, ...). Not an assert: must survive `python -O`."""
+
+
 # ---------------------------------------------------------------- constants
 A0_DEFAULT = 3.567  # Angstrom, experimental
 
@@ -115,6 +121,23 @@ def _frame(orientation: str, a0: float):
     return A1, A2, R
 
 
+def _require_finite(arr: np.ndarray, orientation: str, stage: str) -> None:
+    """Raise GeometryError with shape + non-finite count if arr isn't finite.
+
+    Note: on macOS with the Accelerate BLAS backend, the matmuls that feed
+    this check throw spurious divide-by-zero/overflow/invalid RuntimeWarnings
+    on large arrays regardless of data content (see
+    tests/test_geometry_blas_quirk.py and CLAUDE.md sec 6). This check is the
+    real invariant; the warnings are not evidence either way.
+    """
+    n_bad = np.count_nonzero(~np.isfinite(arr))
+    if n_bad:
+        raise GeometryError(
+            f"bulk_slab({orientation!r}): non-finite coords {stage}; "
+            f"shape={arr.shape}, non-finite entries={n_bad}"
+        )
+
+
 def bulk_slab(orientation: str, n_layers: int, a0: float = A0_DEFAULT,
               z_shift_layers: int = 0) -> Slab:
     """Bulk-truncated slab with n_layers atomic layers, top layer near z=0.
@@ -133,13 +156,16 @@ def bulk_slab(orientation: str, n_layers: int, a0: float = A0_DEFAULT,
                 t = a0 * np.array([i, j, k])
                 pts.append(base + t)
     pts = np.vstack(pts) @ R.T
+    _require_finite(pts, orientation, "after rotation to surface frame")
 
     # wrap into one surface cell (in-plane) and deduplicate
     M = np.array([A1[:2], A2[:2]]).T
     f = np.linalg.solve(M, pts[:, :2].T).T
+    _require_finite(f, orientation, "in fractional in-plane coords from solve")
     f -= np.floor(f + 1e-7)
     f[f > 1 - 1e-7] = 0.0
     pts[:, :2] = f @ np.array([A1[:2], A2[:2]])
+    _require_finite(pts, orientation, "after in-plane wrap")
     key = np.round(np.column_stack([f, pts[:, 2]]), 4)
     _, idx = np.unique(key, axis=0, return_index=True)
     pts = pts[idx]

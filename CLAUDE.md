@@ -204,9 +204,22 @@ artifact as a result of record.
   or refuse overwrite without `--force`.
 - `make_slab_strain_series.py --only` behaves inconsistently as exact-match vs
   substring filter. Verify what it matched before trusting a campaign is complete.
-- `geometry.py` emits NumPy divide/overflow/invalid warnings during generation.
-  Final coordinates appear finite, but the warnings are unexplained. Do not
-  suppress them; assert finiteness explicitly instead.
+- `geometry.py`'s `bulk_slab` matmuls (rotation into the surface frame, and the
+  in-plane wrap) throw NumPy divide-by-zero/overflow/invalid-value
+  RuntimeWarnings during generation. **Diagnosed, not unexplained:** this is an
+  Apple Accelerate BLAS artifact on macOS arm64 (numpy 2.0.2) — the warnings
+  fire once matmul row count crosses a threshold between 100 and 1000,
+  independent of data content. Confirmed with `np.ones((1000,3)) @ np.eye(3)`,
+  which throws the identical three warnings despite input that cannot itself be
+  invalid; see `tests/test_geometry_blas_quirk.py` (skipped on non-Accelerate
+  backends). Finiteness at both matmul sites is enforced by
+  `geometry._require_finite`, which raises `GeometryError` (not `assert`, so it
+  survives `python -O`) with the array shape and non-finite count — this is the
+  real invariant, not the warning text. Do not add `np.errstate`, `np.seterr`,
+  or `warnings.filterwarnings` around these calls: the warnings are expected to
+  disappear on their own once this pipeline runs on the Linux cluster's
+  OpenBLAS build, and a filter committed here would silently swallow a genuine
+  one there.
 - `run_queue.py` has not reliably copied completed slab relaxations into
   `results/slabs/`. Verify the copy rather than assuming it.
 
