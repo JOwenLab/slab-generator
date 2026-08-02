@@ -1,0 +1,57 @@
+! Stress-only SCF generated from results/thickness/C111_12L
+! Uses final relaxed coordinates; no ionic relaxation.
+&CONTROL
+  tprnfor       = .true.
+  tstress       = .true.
+  calculation   = 'scf'
+  prefix        = 'slab'
+  pseudo_dir    = './'
+  outdir = '/tmp/qe'
+  forc_conv_thr = 1.0d-4
+  etot_conv_thr = 1.0d-5
+/
+
+&SYSTEM
+  ibrav    = 0
+  nat      = 14
+  ntyp     = 2
+  ecutwfc  = 90.0
+  ecutrho  = 720.0
+  occupations = 'smearing'
+  smearing    = 'mv'
+  degauss     = 0.01
+/
+
+&ELECTRONS
+  conv_thr    = 1.0d-8
+  mixing_beta = 0.3
+/
+
+ATOMIC_SPECIES
+  C   12.011  C.pbe-n-kjpaw_psl.1.0.0.UPF
+  H    1.008  H_ONCV_PBE-1.0.oncvpsp.upf
+
+CELL_PARAMETERS angstrom
+      2.52694578     0.00000000     0.00000000
+      1.26347289     2.18839924     0.00000000
+      0.00000000     0.00000000    21.01202362
+
+ATOMIC_POSITIONS (angstrom)
+C                1.2634728900        0.7294664100       15.8990735763
+C                2.5269457800        1.4589328300       15.4112028384
+C                2.5269457800        1.4589328300       13.8572757282
+C                0.0000000000       -0.0000000000       13.3426710396
+C                0.0000000000        0.0000000000       11.7951031759
+C                1.2634728900        0.7294664100       11.2796338375
+C                1.2634728900        0.7294664100        9.7323897825
+C                2.5269457800        1.4589328300        9.2169204441
+C                2.5269457800        1.4589328300        7.6693525704
+C                0.0000000000        0.0000000000        7.1547478818
+C                0.0000000000       -0.0000000000        5.6008207816
+C                1.2634728900        0.7294664100        5.1129500437
+H                1.2634728900        0.7294664100       17.0081741576
+H                1.2634728900        0.7294664100        4.0038494624
+
+K_POINTS automatic
+  9 9 1  0 0 0
+! 0 atoms frozen (bottom region) via if_pos flags
