@@ -29,22 +29,25 @@ This is the most directly testable output of the whole pipeline, and it is robus
 
 Nanodiamond lattice parameter versus particle size is a standard powder-XRD measurement. A size-resolved series therefore reads off the dominant facet family from the SIGN of the shift, and then tests the magnitude against the 1/R slope above. Both comparisons are independent of the couplings.
 
-### This shape (octahedron)
+### This shape (mixture)
 
-* **Lattice strain = +0.0486 %** (linear, tr(eps)/3) at R = 1.500 nm -> **expands**
-* **Lattice parameter a = 3.574734 A** vs unstrained a0 = 3.572997 A (delta_a = +0.001737 A)
-* Interior pressure = -0.64445 GPa (compressive-positive)
+* **Lattice strain = +0.1161 %** (linear, tr(eps)/3) at R = 1.500 nm -> **expands**
+* **Lattice parameter a = 3.577144 A** vs unstrained a0 = 3.572997 A (delta_a = +0.004147 A)
+* Interior pressure = -1.53889 GPa (compressive-positive)
 
 Every quantity here scales as 1/R exactly; the companion `..._size_sweep_*.csv` tabulates that curve.
 
 ## Inputs
 
-* Shape: **octahedron**, facet area fractions (111) 1.0000
+* Shape: **mixture**, facet area fractions (100) 0.1648, (110) 0.3872, (111) 0.4480
 * Effective radius R = 3V/A_total = 1.500 nm
 * Surface stress from `results/production/tau_infinity.csv` (epistemic level L2, fitted layers 8L 10L 12L 16L, excluded 6L)
+* Surface energies from `config/surface_energies_h.json` (source_type `project_dft_fit`) evaluated at delta_mu_H = 0.0000 eV below the H-rich limit: (100) +0.0501, (110) -0.8265, (111) -0.9761 J/m^2
 
 | family | tau_xx (N/m) | tau_yy (N/m) | surface x | surface y |
 | --- | ---: | ---: | --- | --- |
+| (100) | -1.0323 | +5.0241 | [110] | [1-10] |
+| (110) | -2.1445 | -4.3975 | [1-10] | [001] |
 | (111) | -0.4833 | -0.4833 | [1-10] | [11-2] |
 
 ## D and E are not equally constrained
@@ -56,9 +59,9 @@ Measured by perturbing each coupling by 5% and recording the response (computed 
 | `h41` | -6.09 % | -- |
 | `h43` | +1.09 % | -- |
 | `h15` | +0.00 % | -- |
-| `h16` | +0.00 % | -- |
-| `h25` | +0.00 % | -- |
-| `h26` | +0.00 % | -- |
+| `h16` | -0.00 % | -- |
+| `h25` | -0.00 % | -- |
+| `h26` | -0.00 % | -- |
 
 The two channels use **disjoint** couplings: `h41`/`h43` set delta_D, `h15`/`h16` set E, and `h25`/`h26` enter only at second order.
 
@@ -93,20 +96,20 @@ A sphere with isotropic tau must give a compressive pressure P = 2*tau/R. If it 
 Volume-averaged interior stress, continuum convention (positive = tension), GPa:
 
 ```
-    +0.64445    -0.00000    -0.00000
-    -0.00000    +0.64445    -0.00000
-    -0.00000    -0.00000    +0.64445
+    +1.53889    -0.00000    -0.00000
+    -0.00000    +1.53889    -0.00000
+    -0.00000    -0.00000    +1.53889
 ```
 
-Hydrostatic pressure (compressive-positive): **-0.64445 GPa**
-In the project/QE convention (positive = compressed) the same tensor is diag(-0.64445, -0.64445, -0.64445) GPa.
+Hydrostatic pressure (compressive-positive): **-1.53889 GPa**
+In the project/QE convention (positive = compressed) the same tensor is diag(-1.53889, -1.53889, -1.53889) GPa.
 
 Interior strain (dimensionless, negative = compression):
 
 ```
-    +4.860e-04    +0.000e+00    +0.000e+00
-    +0.000e+00    +4.860e-04    -0.000e+00
-    +0.000e+00    -0.000e+00    +4.860e-04
+    +1.161e-03    +0.000e+00    +0.000e+00
+    +0.000e+00    +1.161e-03    -0.000e+00
+    +0.000e+00    -0.000e+00    +1.161e-03
 ```
 
 ## NV zero-field splitting
@@ -115,25 +118,25 @@ Delta D and E are given as a BAND across the emitted spin-strain parameter sets.
 
 | NV axis | eps_axial | Delta D band (MHz) | E band (MHz) |
 | --- | ---: | ---: | ---: |
-| [111] | +4.860e-04 | -8.473 .. -5.123 | 0.0000 .. 0.0000 |
-| [1-1-1] | +4.860e-04 | -8.473 .. -5.123 | 0.0000 .. 0.0000 |
-| [-11-1] | +4.860e-04 | -8.473 .. -5.123 | 0.0000 .. 0.0000 |
-| [-1-11] | +4.860e-04 | -8.473 .. -5.123 | 0.0000 .. 0.0000 |
+| [111] | +1.161e-03 | -20.232 .. -12.232 | 0.0000 .. 0.0000 |
+| [1-1-1] | +1.161e-03 | -20.232 .. -12.232 | 0.0000 .. 0.0000 |
+| [-11-1] | +1.161e-03 | -20.232 .. -12.232 | 0.0000 .. 0.0000 |
+| [-1-11] | +1.161e-03 | -20.232 .. -12.232 | 0.0000 .. 0.0000 |
 
 ### Per parameter set
 
 | param set | NV axis | Delta D (MHz) | E (MHz) | f+ (MHz) | f- (MHz) |
 | --- | --- | ---: | ---: | ---: | ---: |
-| udvarhelyi2018_dft | [111] | -5.123 | 0.0000 | 2864.88 | 2864.88 |
-| udvarhelyi2018_dft | [1-1-1] | -5.123 | 0.0000 | 2864.88 | 2864.88 |
-| udvarhelyi2018_dft | [-11-1] | -5.123 | 0.0000 | 2864.88 | 2864.88 |
-| udvarhelyi2018_dft | [-1-11] | -5.123 | 0.0000 | 2864.88 | 2864.88 |
-| barson2017_scaled | [111] | -8.473 | 0.0000 | 2861.53 | 2861.53 |
-| barson2017_scaled | [1-1-1] | -8.473 | 0.0000 | 2861.53 | 2861.53 |
-| barson2017_scaled | [-11-1] | -8.473 | 0.0000 | 2861.53 | 2861.53 |
-| barson2017_scaled | [-1-11] | -8.473 | 0.0000 | 2861.53 | 2861.53 |
+| udvarhelyi2018_dft | [111] | -12.232 | 0.0000 | 2857.77 | 2857.77 |
+| udvarhelyi2018_dft | [1-1-1] | -12.232 | 0.0000 | 2857.77 | 2857.77 |
+| udvarhelyi2018_dft | [-11-1] | -12.232 | 0.0000 | 2857.77 | 2857.77 |
+| udvarhelyi2018_dft | [-1-11] | -12.232 | 0.0000 | 2857.77 | 2857.77 |
+| barson2017_scaled | [111] | -20.232 | 0.0000 | 2849.77 | 2849.77 |
+| barson2017_scaled | [1-1-1] | -20.232 | 0.0000 | 2849.77 | 2849.77 |
+| barson2017_scaled | [-11-1] | -20.232 | 0.0000 | 2849.77 | 2849.77 |
+| barson2017_scaled | [-1-11] | -20.232 | 0.0000 | 2849.77 | 2849.77 |
 
-* Delta D over all axes and all parameter sets: **-8.473 .. -5.123 MHz** (1.65x from the coupling set alone)
+* Delta D over all axes and all parameter sets: **-20.232 .. -12.232 MHz** (1.65x from the coupling set alone)
 * Largest |E| across the four NV orientations and all parameter sets: **0.0000 MHz**
 * Largest spread in Delta D across orientations within one parameter set: 0.0000 MHz
 

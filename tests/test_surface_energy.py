@@ -321,3 +321,109 @@ def test_outputs_state_the_unbounded_h_poor_limit(derived):
     assert "UNPHYSICAL" in report          # the non-crossing is called out
     scan = (out / "surface_energy_vs_mu_h.csv").read_text()
     assert "wulff_defined" in scan and "most_stable" in scan
+
+
+# ============================================ H2 ideal-gas chemical potential
+def test_rrho_reproduces_the_janaf_tabulation():
+    """The load-bearing validation of the T-p mapping. If this drifts, every
+    temperature the mapping reports drifts with it."""
+    val = se.rrho_validation()
+    assert val["passes"], val
+    assert val["max_abs_deviation_ev"] < se.RRHO_VS_JANAF_MAX_DEV_EV
+    for T, v in val["points"].items():
+        assert v["model_ev"] == pytest.approx(v["janaf_ev"], abs=0.015), T
+
+
+def test_h2_zero_point_energy_matches_the_spectroscopic_value():
+    zpe = 0.5 * se.KB_EV * se.H2_THETA_VIB_K
+    assert zpe == pytest.approx(0.273, abs=0.003)      # H2 ZPE ~ 0.27 eV
+    with_zpe = se.h2_mu_shift_ev(1000.0, se.PA_PER_BAR, include_zpe=True)
+    without = se.h2_mu_shift_ev(1000.0, se.PA_PER_BAR, include_zpe=False)
+    assert with_zpe - without == pytest.approx(zpe, abs=1e-9)
+
+
+def test_rotational_partition_function_approaches_the_high_t_limit():
+    """The explicit sum is used because H2's theta_rot is large; it must still
+    converge to T/(sigma*theta_rot) when T >> theta_rot."""
+    for T in (2000.0, 4000.0):
+        exact = se.h2_rotational_partition_function(T)
+        high_t = T / (se.H2_SYMMETRY_NUMBER * se.H2_THETA_ROT_K)
+        assert exact == pytest.approx(high_t, rel=0.02)
+    # ... and must differ noticeably at room temperature, which is why the
+    # high-T limit is not used.
+    room = se.h2_rotational_partition_function(300.0)
+    assert abs(room - 300.0 / (2 * se.H2_THETA_ROT_K)) / room > 0.05
+
+
+def test_delta_mu_grows_with_temperature_and_with_falling_pressure():
+    base = se.delta_mu_from_tp(600.0, se.PA_PER_BAR)
+    assert se.delta_mu_from_tp(1200.0, se.PA_PER_BAR) > base
+    assert se.delta_mu_from_tp(600.0, se.PA_PER_BAR * 1e-6) > base
+
+
+def test_pressure_dependence_is_the_ideal_gas_logarithm():
+    """delta_mu gains (kT/2)*ln(p0/p) exactly."""
+    T = 900.0
+    a = se.delta_mu_from_tp(T, se.PA_PER_BAR)
+    b = se.delta_mu_from_tp(T, se.PA_PER_BAR * 1e-6)
+    assert b - a == pytest.approx(0.5 * se.KB_EV * T * math.log(1e6), abs=1e-9)
+
+
+def test_temperature_solver_inverts_the_mapping():
+    for target in (0.34, 0.85, 1.3, 2.6):
+        for p_bar in (1.0, 1e-6, 1e-12):
+            T = se.temperature_for_delta_mu(target, p_bar * se.PA_PER_BAR)
+            if T is None:
+                continue
+            assert se.delta_mu_from_tp(T, p_bar * se.PA_PER_BAR) == \
+                pytest.approx(target, abs=1e-6)
+
+
+def test_unreachable_condition_returns_none_rather_than_extrapolating():
+    assert se.temperature_for_delta_mu(50.0, se.PA_PER_BAR) is None
+
+
+def test_low_temperature_is_refused_not_extrapolated():
+    """Below ~150 K the rigid-rotor treatment of H2 is simply wrong
+    (ortho/para nuclear-spin statistics)."""
+    with pytest.raises(se.SurfaceEnergyError, match="rigid-rotor"):
+        se.delta_mu_from_tp(77.0, se.PA_PER_BAR)
+
+
+def test_non_positive_pressure_is_refused():
+    with pytest.raises(se.SurfaceEnergyError, match="pressure must be positive"):
+        se.delta_mu_from_tp(500.0, 0.0)
+
+
+def test_tp_curve_is_a_locus_of_constant_delta_mu():
+    rows = se.tp_curve(1.3)
+    assert len(rows) == len(se.DEFAULT_TP_PRESSURES_BAR)
+    for r in rows:
+        if r["temperature_k"] is None:
+            continue
+        assert se.delta_mu_from_tp(r["temperature_k"], r["p_h2_pa"]) == \
+            pytest.approx(1.3, abs=1e-6)
+        assert r["p_h2_torr"] == pytest.approx(r["p_h2_pa"] / se.PA_PER_TORR)
+        assert r["temperature_c"] == pytest.approx(r["temperature_k"] - 273.15)
+    # Lower pressure must always mean a lower temperature for the same mu_H.
+    temps = [r["temperature_k"] for r in rows if r["temperature_k"]]
+    assert temps == sorted(temps, reverse=True)
+
+
+def test_temperature_uncertainty_is_small_but_nonzero():
+    u = se.temperature_uncertainty_k(1.3, se.PA_PER_BAR * 1e-6)
+    assert 0 < u < 50
+
+
+@production
+def test_tp_map_is_written_and_labels_its_provenance(derived):
+    _result, out = derived
+    text = (out / "surface_energy_tp_map.csv").read_text()
+    assert "temperature_k" in text and "p_h2_torr" in text
+    report = (out / "surface_energy_report.md").read_text()
+    assert "ideal-gas chemical potential" in report
+    assert "NIST-JANAF" in report
+    assert "Zero-point energy is EXCLUDED" in report
+    # The dominant caveat must be in the output, not just a comment.
+    assert "remain the stable termination" in report
+    assert "graphitize" in report

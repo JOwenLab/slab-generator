@@ -1,10 +1,12 @@
 {
   "epistemic_level": "L1",
-  "shape": "octahedron",
-  "wulff_note": "",
+  "shape": "mixture",
+  "wulff_note": "facet fractions DERIVED from config/surface_energies_h.json (source_type project_dft_fit) at delta_mu_H = 0.0000 eV: (100) gamma=+0.0501, (110) gamma=-0.8265, (111) gamma=-0.9761 J/m^2, stability-weighted x_i ~ exp(-gamma_i/s) with s = 1.0262 J/m^2 (the gamma spread). Offset-invariant: uses only gamma DIFFERENCES, not the H2-referenced absolute values. NOT an equilibrium shape -- Wulff is undefined here because gamma < 0 across the whole allowed mu_H range.",
   "radius_nm": 1.5,
   "family_fractions": {
-    "111": 1.0
+    "100": 0.16480329430521107,
+    "110": 0.3872149055147458,
+    "111": 0.44798180018004324
   },
   "facet_overrides": {},
   "tau_csv": "results/production/tau_infinity.csv",
@@ -23,10 +25,40 @@
     "udvarhelyi2018_dft": "Udvarhelyi et al., PRB 98, 075201 (2018), Table I",
     "barson2017_scaled": "Udvarhelyi tensor rescaled to Barson et al., Nano Lett. 17, 1496 (2017) axial/transverse magnitudes"
   },
-  "coupling_spread_factor": 1.6539999999996329,
+  "coupling_spread_factor": 1.6540000000000739,
   "coupling_uncertainty_note": "The spin-strain coupling set is the dominant uncertainty in these MHz values: the two published sets differ by ~1.65x on the axial channel for identical strain. delta_D_band_lo/hi span ALL emitted sets for this NV axis and are the honest quantity; any single delta_D_mhz is one corner of that band.",
   "delta_mu_h_ev": 0.0,
-  "surface_energy_provenance": null,
+  "surface_energy_provenance": {
+    "surface_energy_config": "config/surface_energies_h.json",
+    "surface_energy_source_type": "project_dft_fit",
+    "delta_mu_h_ev": 0.0,
+    "gamma_h_rich_j_m2": {
+      "100": 0.050123,
+      "110": -0.826526,
+      "111": -0.976125
+    },
+    "dgamma_dmu_j_m2_per_ev": {
+      "100": 2.510008,
+      "110": 3.549687,
+      "111": 2.898307
+    },
+    "gamma_at_mu_h_j_m2": {
+      "100": 0.050123,
+      "110": -0.826526,
+      "111": -0.976125
+    },
+    "wulff_available_from_delta_mu_ev": 0.3367915593811016,
+    "epistemic_level": {
+      "100": "L1",
+      "110": "L2",
+      "111": "L2"
+    },
+    "gamma_scatter_j_m2": {
+      "100": 0.024119,
+      "110": 0.00033,
+      "111": 0.000562
+    }
+  },
   "surface_frame_check": {
     "111": {
       "supercell": [
@@ -88,27 +120,27 @@
   "channel_coupling_sensitivity": {
     "couplings": {
       "h41": {
-        "d_rel": -0.060910815939122544,
+        "d_rel": -0.060910815939340744,
         "e_rel": null
       },
       "h43": {
-        "d_rel": 0.01091081593931785,
+        "d_rel": 0.0109108159392255,
         "e_rel": null
       },
       "h15": {
-        "d_rel": 1.775484983325764e-13,
+        "d_rel": 3.717631463059224e-14,
         "e_rel": null
       },
       "h16": {
-        "d_rel": 1.775484983325764e-13,
+        "d_rel": -7.435262926118448e-14,
         "e_rel": null
       },
       "h25": {
-        "d_rel": 0.0,
+        "d_rel": -1.1152894389177671e-13,
         "e_rel": null
       },
       "h26": {
-        "d_rel": 2.6632274749886457e-13,
+        "d_rel": -7.435262926118448e-14,
         "e_rel": null
       }
     },
@@ -118,10 +150,10 @@
   },
   "coupling_independent_observable": {
     "quantity": "lattice_strain_percent / lattice_parameter_angstrom",
-    "value_percent": 0.0486007038712921,
-    "lattice_parameter_angstrom": 3.5747339723147817,
+    "value_percent": 0.11605483324529696,
+    "lattice_parameter_angstrom": 3.5771441066509917,
     "a0_unstrained_angstrom": 3.572997470394866,
-    "why": "interior strain BEFORE any spin-strain coupling is applied, so none of the ~1.65x coupling uncertainty enters. Directly measurable as the cubic lattice parameter vs particle size by powder XRD; see particle_strain_size_sweep_octahedron.csv for the 1/R curve to compare a size-resolved series against."
+    "why": "interior strain BEFORE any spin-strain coupling is applied, so none of the ~1.65x coupling uncertainty enters. Directly measurable as the cubic lattice parameter vs particle size by powder XRD; see particle_strain_size_sweep_mixture.csv for the 1/R curve to compare a size-resolved series against."
   },
   "elastic_source_type": "literature",
   "elastic_citation": "Diamond cubic stiffness constants as used by Udvarhelyi, Shkolnikov, Gali, Burkard & Palyi, Phys. Rev. B 98, 075201 (2018), attributed therein to E. Kaxiras, Atomic and Electronic Structure of Solids (Cambridge University Press, 2003).",

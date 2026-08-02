@@ -1,10 +1,10 @@
 {
   "epistemic_level": "L1",
-  "shape": "octahedron",
+  "shape": "cube",
   "wulff_note": "",
   "radius_nm": 1.5,
   "family_fractions": {
-    "111": 1.0
+    "100": 1.0
   },
   "facet_overrides": {},
   "tau_csv": "results/production/tau_infinity.csv",
@@ -23,7 +23,7 @@
     "udvarhelyi2018_dft": "Udvarhelyi et al., PRB 98, 075201 (2018), Table I",
     "barson2017_scaled": "Udvarhelyi tensor rescaled to Barson et al., Nano Lett. 17, 1496 (2017) axial/transverse magnitudes"
   },
-  "coupling_spread_factor": 1.6539999999996329,
+  "coupling_spread_factor": 1.6540000000000463,
   "coupling_uncertainty_note": "The spin-strain coupling set is the dominant uncertainty in these MHz values: the two published sets differ by ~1.65x on the axial channel for identical strain. delta_D_band_lo/hi span ALL emitted sets for this NV axis and are the honest quantity; any single delta_D_mhz is one corner of that band.",
   "delta_mu_h_ev": 0.0,
   "surface_energy_provenance": null,
@@ -88,19 +88,19 @@
   "channel_coupling_sensitivity": {
     "couplings": {
       "h41": {
-        "d_rel": -0.060910815939122544,
+        "d_rel": 0.060910815939305564,
         "e_rel": null
       },
       "h43": {
-        "d_rel": 0.01091081593931785,
+        "d_rel": -0.010910815939296967,
         "e_rel": null
       },
       "h15": {
-        "d_rel": 1.775484983325764e-13,
+        "d_rel": 0.0,
         "e_rel": null
       },
       "h16": {
-        "d_rel": 1.775484983325764e-13,
+        "d_rel": -6.449456845639705e-14,
         "e_rel": null
       },
       "h25": {
@@ -108,7 +108,7 @@
         "e_rel": null
       },
       "h26": {
-        "d_rel": 2.6632274749886457e-13,
+        "d_rel": 4.299637897093137e-14,
         "e_rel": null
       }
     },
@@ -118,10 +118,10 @@
   },
   "coupling_independent_observable": {
     "quantity": "lattice_strain_percent / lattice_parameter_angstrom",
-    "value_percent": 0.0486007038712921,
-    "lattice_parameter_angstrom": 3.5747339723147817,
+    "value_percent": -0.20069089994972342,
+    "lattice_parameter_angstrom": 3.56582678961635,
     "a0_unstrained_angstrom": 3.572997470394866,
-    "why": "interior strain BEFORE any spin-strain coupling is applied, so none of the ~1.65x coupling uncertainty enters. Directly measurable as the cubic lattice parameter vs particle size by powder XRD; see particle_strain_size_sweep_octahedron.csv for the 1/R curve to compare a size-resolved series against."
+    "why": "interior strain BEFORE any spin-strain coupling is applied, so none of the ~1.65x coupling uncertainty enters. Directly measurable as the cubic lattice parameter vs particle size by powder XRD; see particle_strain_size_sweep_cube.csv for the 1/R curve to compare a size-resolved series against."
   },
   "elastic_source_type": "literature",
   "elastic_citation": "Diamond cubic stiffness constants as used by Udvarhelyi, Shkolnikov, Gali, Burkard & Palyi, Phys. Rev. B 98, 075201 (2018), attributed therein to E. Kaxiras, Atomic and Electronic Structure of Solids (Cambridge University Press, 2003).",

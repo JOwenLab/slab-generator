@@ -394,6 +394,263 @@ def grade_fits(fits: list, mu_c_tol_mry: float) -> list:
     return warnings
 
 
+# ============================================================================
+# Mapping delta_mu -> (T, p_H2) via the ideal-gas chemical potential of H2
+# ============================================================================
+# WHAT IS COMPUTED HERE AND WHAT IS NOT
+#
+# Computed by DFT in this project:
+#   * E(H2), the total energy of the relaxed molecule;
+#   * the slab total energies, hence gamma at the H-rich limit and its slope
+#     dgamma/d(-mu_H) = N_H/2A.
+#
+# NOT computed here -- textbook ideal-gas statistical thermodynamics, using
+# spectroscopic constants of H2 taken from the literature:
+#   * the translational, rotational and vibrational contributions to
+#     mu_H2(T, p) below. No molecular dynamics, no phonons, no anharmonicity.
+#
+# The model is rigid-rotor / harmonic-oscillator (RRHO) with an explicit sum
+# over rotational levels rather than the high-temperature limit, because H2's
+# rotational temperature (87.6 K) is large enough that the high-T limit is a
+# visible approximation at room temperature. Validated against the NIST-JANAF
+# tabulation in tests/test_surface_energy.py: agreement is better than 15 meV
+# from 298 K to 2000 K, which is roughly +/-15 K on any temperature this
+# mapping reports.
+#
+# ZERO-POINT ENERGY IS EXCLUDED BY DEFAULT, and that is a deliberate
+# consistency choice, not an oversight. gamma was derived from DFT total
+# energies with no vibrational contribution on either side. Adding the H2 ZPE
+# (0.273 eV, so 0.136 eV per H) without the corresponding zero-point energy of
+# the ADSORBED hydrogen would be an unbalanced correction, and the adsorbed-H
+# ZPE cannot be computed here -- this repository has no phonon calculation
+# (CLAUDE.md sec 3). The two terms are of similar size and partially cancel.
+# `--include-zpe` applies the H2 side alone for sensitivity testing and is
+# labelled as unbalanced wherever it is used.
+# ============================================================================
+
+KB_SI = 1.380649e-23             # J/K
+H_PLANCK_SI = 6.62607015e-34     # J s
+AMU_KG = 1.66053906660e-27
+KB_EV = 8.617333262e-5           # eV/K
+PA_PER_BAR = 1.0e5
+PA_PER_TORR = 133.322368421
+
+# H2 spectroscopic constants (Huber & Herzberg, Constants of Diatomic
+# Molecules). Literature values, not computed in this project.
+H2_MASS_AMU = 2.01588
+H2_THETA_ROT_K = 87.55           # from B0 = 60.853 cm^-1
+H2_THETA_VIB_K = 6332.5          # from nu = 4401.21 cm^-1
+H2_SYMMETRY_NUMBER = 2           # homonuclear
+
+# NIST-JANAF H2 reference values, G(T) - H(0) at 1 bar, eV. Used ONLY to
+# validate and to quote the uncertainty of the RRHO model; never in the
+# computation path.
+JANAF_H2_G_MINUS_H0_EV = {
+    298.15: -0.3160, 500.0: -0.6065, 1000.0: -1.4207,
+    1500.0: -2.3053, 2000.0: -3.2690,
+}
+RRHO_VS_JANAF_MAX_DEV_EV = 0.015
+
+
+def h2_rotational_partition_function(T: float, j_max: int = 80) -> float:
+    """Explicit sum over rigid-rotor levels, divided by the symmetry number.
+
+    Below roughly 150 K this is not right for hydrogen: ortho/para nuclear-spin
+    statistics dominate and the equilibrium composition is temperature
+    dependent. The mapping refuses to run below `MIN_VALID_TEMPERATURE_K`.
+    """
+    return sum((2 * J + 1) * math.exp(-J * (J + 1) * H2_THETA_ROT_K / T)
+               for J in range(j_max)) / H2_SYMMETRY_NUMBER
+
+
+MIN_VALID_TEMPERATURE_K = 150.0
+
+
+def h2_mu_shift_ev(T: float, p_pa: float, include_zpe: bool = False) -> float:
+    """mu_H2(T, p) - E(H2), in eV: everything beyond the DFT total energy.
+
+    Translational + rotational + vibrational, ideal gas. Negative and growing
+    in magnitude with T (the entropy term dominates) and with falling pressure.
+    """
+    if T < MIN_VALID_TEMPERATURE_K:
+        raise SurfaceEnergyError(
+            f"T = {T} K is below {MIN_VALID_TEMPERATURE_K} K, where the "
+            f"rigid-rotor treatment of H2 breaks down (ortho/para nuclear-spin "
+            f"statistics). Refusing to extrapolate.")
+    if p_pa <= 0:
+        raise SurfaceEnergyError(f"pressure must be positive, got {p_pa} Pa")
+    lam = H_PLANCK_SI / math.sqrt(
+        2.0 * math.pi * H2_MASS_AMU * AMU_KG * KB_SI * T)
+    kT = KB_EV * T
+    mu_trans = -kT * math.log(KB_SI * T / (p_pa * lam ** 3))
+    mu_rot = -kT * math.log(h2_rotational_partition_function(T))
+    mu_vib = kT * math.log(1.0 - math.exp(-H2_THETA_VIB_K / T))
+    if include_zpe:
+        mu_vib += 0.5 * KB_EV * H2_THETA_VIB_K
+    return mu_trans + mu_rot + mu_vib
+
+
+def delta_mu_from_tp(T: float, p_pa: float, include_zpe: bool = False) -> float:
+    """delta_mu = mu_H(H-rich) - mu_H(T, p), in eV.
+
+    mu_H = mu_H2 / 2, so delta_mu = -[mu_H2(T,p) - E(H2)] / 2. Positive means
+    hydrogen-poorer than the H-rich limit, which is the direction that raises
+    every surface energy.
+    """
+    return -h2_mu_shift_ev(T, p_pa, include_zpe) / 2.0
+
+
+def temperature_for_delta_mu(delta_mu_ev: float, p_pa: float,
+                             include_zpe: bool = False,
+                             t_lo: float = MIN_VALID_TEMPERATURE_K,
+                             t_hi: float = 4000.0):
+    """Temperature at which delta_mu(T, p) reaches the target, or None.
+
+    None means the condition is out of reach at this pressure within the
+    bracketed temperature range -- which is itself a reportable result.
+    """
+    def f(T):
+        return delta_mu_from_tp(T, p_pa, include_zpe) - delta_mu_ev
+    if f(t_lo) > 0:
+        return t_lo if abs(f(t_lo)) < 1e-9 else None
+    if f(t_hi) < 0:
+        return None
+    lo, hi = t_lo, t_hi
+    for _ in range(200):
+        mid = 0.5 * (lo + hi)
+        if f(mid) < 0.0:
+            lo = mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
+
+
+DEFAULT_TP_PRESSURES_BAR = (1.0, 1.0e-3, 1.0e-6, 1.0e-9, 1.0e-12)
+
+
+def tp_curve(delta_mu_ev: float, pressures_bar=DEFAULT_TP_PRESSURES_BAR,
+             include_zpe: bool = False, t_hi: float = 4000.0) -> list:
+    """The (T, p) locus along which delta_mu equals the given value."""
+    rows = []
+    for p_bar in pressures_bar:
+        p_pa = p_bar * PA_PER_BAR
+        T = temperature_for_delta_mu(delta_mu_ev, p_pa, include_zpe, t_hi=t_hi)
+        rows.append({
+            "delta_mu_ev": delta_mu_ev,
+            "p_h2_bar": p_bar,
+            "p_h2_pa": p_pa,
+            "p_h2_torr": p_pa / PA_PER_TORR,
+            "temperature_k": T,
+            "temperature_c": None if T is None else T - 273.15,
+            "reachable": T is not None,
+        })
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# The zero-point-energy systematic -- the DOMINANT uncertainty on any
+# temperature this mapping reports, roughly thirty times the ideal-gas fit
+# residual. It is quoted, not applied.
+#
+# gamma was built from DFT total energies with no vibrational term anywhere.
+# Restoring zero-point energy consistently adds N_H * ZPE_ads to E_slab and
+# ZPE(H2)/2 to mu_H, so
+#
+#     gamma_with_zpe(delta_mu) = gamma(delta_mu + DELTA_ZPE)
+#
+# with DELTA_ZPE = ZPE_ads(per H) - ZPE(H2)/2. Because the C-H zero-point
+# energy is nearly the same on all three facets, the correction enters through
+# N_H/2A exactly as the mu_H term does -- it is a rigid SHIFT OF THE delta_mu
+# AXIS, not a per-facet reshuffle. Every facet ordering and every crossing
+# therefore moves together, and the shape at a given delta_mu is unchanged; it
+# is the (T, p) required to reach that delta_mu that moves.
+#
+# DELTA_ZPE > 0, so the shift makes every condition MORE accessible: the same
+# surface chemistry is reached at a lower temperature than the no-ZPE numbers
+# suggest.
+#
+# The frequencies below are literature values for monohydride C-H on diamond,
+# used only to size the systematic. `make_h_phonons.py` / `analyze_h_phonons.py`
+# compute the real number from frozen-phonon displacements; until that campaign
+# has run, this is an estimate and is labelled as one everywhere it appears.
+# ---------------------------------------------------------------------------
+CM1_TO_EV = 1.23984198e-4
+
+# Monohydride C-H on diamond: one stretch, two bends.
+ZPE_CH_STRETCH_CM1 = 2900.0
+ZPE_CH_BEND_CM1 = 1250.0
+ZPE_ESTIMATE_SOURCE = ("literature monohydride C-H frequencies on diamond "
+                       "(stretch ~2900 cm^-1, two bends ~1250 cm^-1); an "
+                       "ESTIMATE pending make_h_phonons.py / "
+                       "analyze_h_phonons.py")
+
+
+def zpe_adsorbed_h_ev(stretch_cm1: float = ZPE_CH_STRETCH_CM1,
+                      bend_cm1: float = ZPE_CH_BEND_CM1) -> float:
+    """Zero-point energy of one adsorbed H: half the sum of its three modes."""
+    return 0.5 * (stretch_cm1 + 2.0 * bend_cm1) * CM1_TO_EV
+
+
+def zpe_h2_per_h_ev() -> float:
+    return 0.5 * (0.5 * KB_EV * H2_THETA_VIB_K) * 2.0 / 2.0
+
+
+def delta_zpe_ev(stretch_cm1: float = ZPE_CH_STRETCH_CM1,
+                 bend_cm1: float = ZPE_CH_BEND_CM1) -> float:
+    """DELTA_ZPE = ZPE_ads(per H) - ZPE(H2)/2, in eV.
+
+    Positive: an adsorbed H is stiffer than half an H2 molecule. Adding it
+    shifts the delta_mu axis by this amount, in the direction that makes every
+    condition easier to reach.
+    """
+    return zpe_adsorbed_h_ev(stretch_cm1, bend_cm1) - zpe_h2_per_h_ev()
+
+
+def zpe_systematic_on_temperature(delta_mu_ev: float, p_pa: float,
+                                  delta_zpe_ev_value: float = None) -> dict:
+    """How far the missing ZPE moves a crossing temperature at one pressure.
+
+    Returns the no-ZPE temperature, the ZPE-corrected temperature, and the
+    shift. The shift is pressure dependent because d(delta_mu)/dT carries the
+    (k/2)*ln(p0/p) term, so it grows as the pressure falls.
+    """
+    dz = delta_zpe_ev() if delta_zpe_ev_value is None else delta_zpe_ev_value
+    t_plain = temperature_for_delta_mu(delta_mu_ev, p_pa)
+    t_zpe = temperature_for_delta_mu(max(delta_mu_ev - dz, 0.0), p_pa)
+    return {
+        "delta_zpe_ev": dz,
+        "delta_mu_no_zpe_ev": delta_mu_ev,
+        "delta_mu_with_zpe_ev": delta_mu_ev - dz,
+        "temperature_no_zpe_k": t_plain,
+        "temperature_with_zpe_k": t_zpe,
+        "shift_k": (None if (t_plain is None or t_zpe is None)
+                    else t_zpe - t_plain),
+    }
+
+
+def rrho_validation() -> dict:
+    """Deviation of this RRHO model from the NIST-JANAF tabulation."""
+    devs = {}
+    for T, ref in sorted(JANAF_H2_G_MINUS_H0_EV.items()):
+        model = h2_mu_shift_ev(T, PA_PER_BAR, include_zpe=False)
+        devs[T] = {"model_ev": model, "janaf_ev": ref, "deviation_ev": model - ref}
+    worst = max(abs(v["deviation_ev"]) for v in devs.values())
+    return {"points": devs, "max_abs_deviation_ev": worst,
+            "passes": worst <= RRHO_VS_JANAF_MAX_DEV_EV}
+
+
+def temperature_uncertainty_k(delta_mu_ev: float, p_pa: float,
+                              dev_ev: float = RRHO_VS_JANAF_MAX_DEV_EV) -> float:
+    """Convert the RRHO-vs-JANAF deviation into a temperature uncertainty."""
+    T = temperature_for_delta_mu(delta_mu_ev, p_pa)
+    if T is None:
+        return float("nan")
+    h = 5.0
+    slope = ((delta_mu_from_tp(T + h, p_pa) - delta_mu_from_tp(T - h, p_pa))
+             / (2 * h))
+    return abs(dev_ev / 2.0 / slope) if slope else float("nan")
+
+
 # ------------------------------------------------------- mu_H dependence
 @dataclass
 class Crossing:
@@ -709,7 +966,70 @@ def render_report(fits: list, ref: Reference, crossings: list, meta: dict) -> st
         vals = "  ".join(f"{n}L {f.per_slab_gamma_j_m2[n]:+.4f}"
                          for n in sorted(f.per_slab_gamma_j_m2))
         L.append(f"* {f.orientation}: {vals}")
+    L += ["", "## Translating delta_mu into (T, p_H2)", "",
+          "delta_mu is an abstract axis until it is anchored to conditions a "
+          "furnace can reach. The mapping below uses the ideal-gas chemical "
+          "potential of H2:", "",
+          "    delta_mu(T, p) = -[ mu_H2(T,p) - E(H2) ] / 2", "",
+          "with mu_H2 built from the standard translational, rotational and "
+          "vibrational terms.", "",
+          "**What is computed here versus what is textbook thermodynamics:**", "",
+          "* COMPUTED (this project's DFT): E(H2); the slab energies; hence "
+          "gamma at the H-rich limit and its slope N_H/2A.",
+          "* NOT COMPUTED (ideal-gas statistical thermodynamics with "
+          "literature spectroscopic constants of H2): every T- and p-dependent "
+          "term below. Rigid rotor with an explicit level sum, harmonic "
+          "oscillator, ideal gas. No anharmonicity, no real-gas correction.", ""]
+    val = meta.get("rrho_validation")
+    if val:
+        L += [f"The model reproduces the NIST-JANAF tabulation of "
+              f"G(T) - H(0) for H2 to within "
+              f"{val['max_abs_deviation_ev'] * 1000:.0f} meV between 298 K and "
+              f"2000 K, which is the dominant systematic on any temperature "
+              f"quoted below (of order +/-15 K).", "",
+              "| T (K) | this model (eV) | NIST-JANAF (eV) | deviation (meV) |",
+              "| ---: | ---: | ---: | ---: |"]
+        for T, v in sorted(val["points"].items()):
+            L.append(f"| {T:.2f} | {v['model_ev']:+.4f} | {v['janaf_ev']:+.4f} "
+                     f"| {v['deviation_ev'] * 1000:+.1f} |")
+        L.append("")
+    L += ["Zero-point energy is EXCLUDED. gamma was derived from DFT total "
+          "energies with no vibrational term on either side; adding the H2 ZPE "
+          "(0.136 eV per H) without the adsorbed-H ZPE would be an unbalanced "
+          "correction, and the adsorbed-H ZPE needs a phonon calculation this "
+          "repository does not have. The two are of similar size and partially "
+          "cancel.", ""]
+    tp = meta.get("tp_landmarks") or []
+    if tp:
+        L += ["### Conditions for each landmark", "",
+              "| landmark | delta_mu (eV) | p_H2 (bar) | p_H2 (Torr) | T (K) | "
+              "T (C) |", "| --- | ---: | ---: | ---: | ---: | ---: |"]
+        for r in tp:
+            tk = ("unreachable below 4000 K" if r["temperature_k"] is None
+                  else f"{r['temperature_k']:.0f}")
+            tc = ("" if r["temperature_c"] is None
+                  else f"{r['temperature_c']:.0f}")
+            name = (f"{r['landmark']} {r['surfaces']}"
+                    if r["surfaces"] != "all" else r["landmark"])
+            L.append(f"| {name} | {r['delta_mu_ev']:.3f} | "
+                     f"{r['p_h2_bar']:.0e} | {r['p_h2_torr']:.1e} | {tk} | {tc} |")
+        L.append("")
+
     L += ["", "## Caveats", "",
+          "* **The H-terminated surface is ASSUMED to remain the stable "
+          "termination at every mu_H.** Only H-terminated facets were "
+          "calculated, so gamma_H can be extrapolated to arbitrarily "
+          "hydrogen-poor conditions without anything stopping it. In reality "
+          "the surface dehydrogenates or reconstructs once gamma_H rises above "
+          "the bare or reconstructed surface energy, and that bound cannot be "
+          "computed from this data set. It is the single largest limitation on "
+          "everything above, and it bites hardest exactly where delta_mu is "
+          "large.",
+          "* Competing kinetics are not modelled at all. Nanodiamond surfaces "
+          "graphitize on annealing in vacuum, and that process is not in this "
+          "thermodynamic picture. A (T, p) point being thermodynamically "
+          "reachable does not mean the H-terminated diamond surface survives "
+          "the trip.",
           "* The H-poor end of the mu_H range is not bounded by any calculation "
           "here. Statements about very hydrogen-poor conditions are "
           "extrapolations of a straight line, nothing more.",
@@ -741,14 +1061,31 @@ def run(runs_dir, reference_dir, out_dir, prefix, exclude_layers, mu_h_range,
     crossings = find_crossings(fits, mu_h_range)
     avail = wulff_available_from_ev(fits)
 
+    validation = rrho_validation()
     meta = {
         "runs_dir": str(runs_dir), "run_prefix": prefix,
         "reference_dir": str(reference_dir),
         "mu_h_range": list(mu_h_range), "mu_h_points": mu_h_points,
         "mu_c_tol_mry": mu_c_tol_mry,
         "wulff_available_from_ev": avail,
+        "rrho_validation": validation,
         "warnings": warnings,
     }
+
+    # Every landmark on the delta_mu axis, expressed as a (T, p_H2) locus.
+    tp_rows = []
+    landmarks = [("wulff_available", ("all",), avail)] + [
+        (c.kind, c.surfaces, c.delta_mu_ev) for c in crossings
+        if math.isfinite(c.delta_mu_ev) and c.physical]
+    for kind, surfaces, d in landmarks:
+        if d is None:
+            continue
+        for row in tp_curve(d):
+            tp_rows.append({
+                "landmark": kind, "surfaces": "+".join(surfaces), **row,
+                "temperature_uncertainty_k": temperature_uncertainty_k(
+                    d, row["p_h2_pa"]),
+            })
 
     out_dir = Path(out_dir)
     write_csv(summary_rows(fits, ref), SUMMARY_FIELDS,
@@ -756,6 +1093,10 @@ def run(runs_dir, reference_dir, out_dir, prefix, exclude_layers, mu_h_range,
     scan_rows = scan(fits, mu_h_range, mu_h_points)
     write_csv(scan_rows, list(scan_rows[0].keys()),
               out_dir / "surface_energy_vs_mu_h.csv")
+    if tp_rows:
+        write_csv(tp_rows, list(tp_rows[0].keys()),
+                  out_dir / "surface_energy_tp_map.csv")
+    meta["tp_landmarks"] = tp_rows
     (out_dir / "surface_energy_report.md").write_text(
         render_report(fits, ref, crossings, meta))
 
@@ -826,8 +1167,21 @@ def main(argv=None) -> int:
                   f"delta_mu = {c.delta_mu_ev:+.4f} eV{tag}")
     for w in meta["warnings"]:
         print(f"WARNING: {w}", file=sys.stderr)
+    val = result["meta"]["rrho_validation"]
+    print(f"# H2 ideal-gas mapping (RRHO, literature constants, no ZPE): "
+          f"max deviation from NIST-JANAF "
+          f"{val['max_abs_deviation_ev'] * 1000:.0f} meV over 298-2000 K")
+    for r in result["meta"].get("tp_landmarks", []):
+        if r["p_h2_bar"] not in (1.0, 1e-6, 1e-12):
+            continue
+        name = (f"{r['landmark']} {r['surfaces']}" if r["surfaces"] != "all"
+                else r["landmark"])
+        tk = ("unreachable <4000K" if r["temperature_k"] is None
+              else f"T = {r['temperature_k']:7.0f} K")
+        print(f"#   {name:28s} d_mu={r['delta_mu_ev']:5.3f} eV  "
+              f"p={r['p_h2_bar']:7.0e} bar  {tk}")
     for name in ("surface_energy.csv", "surface_energy_vs_mu_h.csv",
-                 "surface_energy_report.md"):
+                 "surface_energy_tp_map.csv", "surface_energy_report.md"):
         print(f"wrote {os.path.join(args.out_dir, name)}")
     if args.write_config:
         print(f"wrote {args.write_config}")

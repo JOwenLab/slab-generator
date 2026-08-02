@@ -456,6 +456,37 @@ def pressure_gpa(sigma_mech: np.ndarray) -> float:
     return -float(np.trace(sigma_mech)) / 3.0 / GPA
 
 
+# ------------------------------------------------- coupling-free observable
+def lattice_strain(eps_cubic: np.ndarray) -> float:
+    """
+    Linear lattice strain, eps_lin = tr(eps)/3. Dimensionless.
+
+    THE COUPLING-INDEPENDENT OBSERVABLE.
+
+    Every MHz number this module produces is (interior strain) x (spin-strain
+    coupling), and the couplings are the weakest link in the chain: the two
+    published parameter sets differ by ~1.65x on the axial channel alone (see
+    COUPLING_NOTE), which is a larger uncertainty than everything else combined.
+
+    The lattice strain is the same interior strain BEFORE that multiplication.
+    It therefore carries none of the coupling uncertainty, and it is directly
+    measurable: the cubic lattice parameter of a nanodiamond ensemble versus
+    particle size is a standard powder-XRD experiment. A size-resolved PXRD
+    series measures exactly this quantity, with a 1/R dependence that
+    `size_sweep()` emits for direct comparison.
+
+    For a symmetry-complete facet set the interior stress is hydrostatic, so
+    eps is isotropic and eps_lin is simply its diagonal entry; tr/3 is used so
+    the definition still means something for a deliberately asymmetric shape.
+    """
+    return float(np.trace(eps_cubic)) / 3.0
+
+
+def lattice_parameter_angstrom(eps_cubic: np.ndarray, a0_angstrom: float) -> float:
+    """Strained cubic lattice parameter, a = a0 (1 + eps_lin), in Angstrom."""
+    return a0_angstrom * (1.0 + lattice_strain(eps_cubic))
+
+
 def isotropic_facet_set(tau_n_per_m: float, n_directions: int = 2000) -> list:
     """A sphere discretised into equal-area facets carrying isotropic tau.
 
@@ -798,6 +829,23 @@ class ParticleResult:
     param_sets: list = field(default_factory=list)
     facet_overrides: dict = field(default_factory=dict)
     meta: dict = field(default_factory=dict)
+    a0_angstrom: float = None
+
+    # -- the coupling-independent observable -------------------------------
+    @property
+    def lattice_strain(self) -> float:
+        """Linear lattice strain tr(eps)/3. No spin-strain coupling involved."""
+        return lattice_strain(self.eps_cubic)
+
+    @property
+    def lattice_strain_percent(self) -> float:
+        return 100.0 * self.lattice_strain
+
+    @property
+    def lattice_parameter_angstrom(self):
+        if self.a0_angstrom is None:
+            return None
+        return lattice_parameter_angstrom(self.eps_cubic, self.a0_angstrom)
 
     @property
     def shape_is_symmetric(self) -> bool:
@@ -837,7 +885,8 @@ class ParticleResult:
 
 def evaluate(taus: dict, family_fractions: dict, radius_nm: float,
              elastic, param_sets, facet_overrides: dict = None,
-             shape_label: str = "mixture") -> ParticleResult:
+             shape_label: str = "mixture",
+             a0_angstrom: float = None) -> ParticleResult:
     """Evaluate the particle for EVERY supplied spin-strain parameter set.
 
     param_sets is a list of SpinStrainParams (a bare one is accepted and
@@ -885,7 +934,540 @@ def evaluate(taus: dict, family_fractions: dict, radius_nm: float,
         nv_rows=rows, e_max_mhz=e_max, delta_d_spread_mhz=dspread,
         laplace=laplace_check(), param_sets=[p.name for p in param_sets],
         facet_overrides=dict(facet_overrides or {}),
+        a0_angstrom=a0_angstrom,
     )
+
+
+DEFAULT_SWEEP_RADII_NM = (0.75, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0,
+                          7.5, 10.0, 15.0, 20.0)
+
+
+CHANNEL_NOTE = (
+    "D and E are NOT equally well constrained. delta_D depends only on h41 and "
+    "h43, and for the hydrostatic interior stress of a symmetry-complete "
+    "particle only through the single combination (2*h41 + h43) -- which is "
+    "exactly what a hydrostatic-pressure ODMR measurement determines. E depends "
+    "on a DISJOINT pair, h15 and h16, which no hydrostatic measurement "
+    "constrains at all; which of the two dominates depends on the strain state "
+    "(h15 multiplies the in-plane difference eps_xx - eps_yy and eps_xy, h16 "
+    "the shears eps_xz and eps_yz, both in the NV frame), so neither can be "
+    "neglected in general. E additionally vanishes identically for any "
+    "symmetry-complete facet set, so a non-zero E requires an assumed shape "
+    "asymmetry that nothing in this pipeline constrains. E therefore carries "
+    "strictly more uncertainty than delta_D: different and less well measured "
+    "couplings, times an unconstrained geometric prefactor.")
+
+
+def channel_coupling_sensitivity(eps_cubic: np.ndarray, frame: np.ndarray,
+                                 params, rel_step: float = 0.05) -> dict:
+    """
+    Which spin-strain couplings each channel actually depends on, measured.
+
+    Perturbs each coupling by `rel_step` and records the fractional response of
+    delta_D and of E. Computed rather than asserted, so it stays true if the
+    Hamiltonian is ever changed.
+
+    Returns per-coupling {"d_rel": .., "e_rel": ..}, plus "hydrostatic_combo"
+    (the value of 2*h41 + h43, the only combination a hydrostatic experiment
+    fixes) and "e_is_identically_zero".
+    """
+    import dataclasses
+
+    base = nv_spin_strain.nv_observables(eps_cubic, frame, params)
+    d0, e0 = base["delta_D_mhz"], base["E_mhz"]
+    out = {"couplings": {}}
+    for name in ("h41", "h43", "h15", "h16", "h25", "h26"):
+        pert = dataclasses.replace(params, **{name: getattr(params, name) * (1.0 + rel_step)})
+        obs = nv_spin_strain.nv_observables(eps_cubic, frame, pert)
+        out["couplings"][name] = {
+            "d_rel": (None if abs(d0) < 1e-12
+                      else (obs["delta_D_mhz"] - d0) / abs(d0)),
+            "e_rel": (None if abs(e0) < 1e-12
+                      else (obs["E_mhz"] - e0) / abs(e0)),
+        }
+    out["hydrostatic_combo_2h41_plus_h43_mhz_per_strain"] = (
+        2.0 * params.h41 + params.h43)
+    out["e_is_identically_zero"] = abs(e0) < 1e-12
+    out["rel_step"] = rel_step
+    return out
+
+
+def facet_lattice_directions(taus: dict, elastic, a0_angstrom: float,
+                             radius_nm: float = 1.5) -> list:
+    """
+    Per-family lattice-strain direction and da/d(1/R) slope.
+
+    The DIRECTION is the most robust thing this module produces. It survives
+    two separate uncertainties at once:
+
+      * no spin-strain coupling enters it, so the ~1.65x coupling spread that
+        dominates every MHz number is absent;
+      * it does not depend on the absolute tau scale either -- multiplying
+        every tau by a common positive factor rescales the magnitude and
+        leaves the sign untouched. Only the SIGN of each facet's mean f
+        matters, and (100) has the opposite sign to (110) and (111).
+
+    So a {100}-dominated particle contracts while {110}- or {111}-dominated
+    ones expand, and a size-resolved lattice-parameter measurement reads off
+    which facet family dominates from the direction of the shift alone. The
+    slope then gives the magnitude for a quantitative comparison.
+    """
+    rows = []
+    for family in sorted(taus):
+        res = evaluate(taus, {family: 1.0}, radius_nm, elastic,
+                       [nv_spin_strain.UDVARHELYI_DFT],
+                       shape_label=family, a0_angstrom=a0_angstrom)
+        strain = res.lattice_strain
+        rows.append({
+            "family": family,
+            "f_mean_n_per_m": 0.5 * (taus[family]["tau_xx"]
+                                     + taus[family]["tau_yy"]),
+            "lattice_strain_percent": 100.0 * strain,
+            # everything is exactly 1/R, so one point fixes the slope
+            "da_d_inverse_radius_angstrom_nm": a0_angstrom * strain * radius_nm,
+            "direction": "expand" if strain > 0 else "contract",
+        })
+    return rows
+
+
+def stability_weighted_fractions(gammas: dict, scale_j_m2: float = None) -> dict:
+    """
+    Facet area fractions ordered by surface stability, from gamma alone.
+
+    WHY NOT A WULFF CONSTRUCTION
+    ----------------------------
+    Wulff needs positive gamma: it places facet f at a distance proportional to
+    gamma_f from the centre, so a negative gamma has no geometric reading and
+    the equilibrium shape is unbounded. For H-terminated diamond referenced to
+    H2 the energies are negative, and — this is the part that matters — they
+    are negative across the WHOLE physically allowed range of the hydrogen
+    chemical potential, not merely at one point. dgamma/dmu_H > 0 for all three
+    facets, and mu_H <= E(H2)/2 is the physical bound, so gamma is at its
+    maximum at the H-rich limit and only becomes more negative going H-poor. At
+    that maximum (110) still needs delta_mu_H > +0.233 eV and (111) > +0.337 eV
+    to turn positive, both beyond the bound. There is no chemical potential at
+    which the equilibrium shape is defined, which is why `--shape wulff`
+    refuses rather than offering a default.
+
+    WHAT THIS DOES INSTEAD
+    ----------------------
+    The energies still fix the stability ORDER, and the order is offset-free
+    even though the absolute values are reference-dependent. This uses a
+    Boltzmann-like weight
+
+        x_i  ∝  exp(-gamma_i / s)
+
+    which is invariant under gamma_i -> gamma_i + c (a constant shift cancels
+    in the normalisation), so it depends only on the gamma DIFFERENCES — the
+    part of the energetics that does not depend on the H2 reference. `s`
+    defaults to the spread max(gamma) - min(gamma), which sets "one unit of
+    stability difference" to the full range actually present.
+
+    THIS IS NOT AN EQUILIBRIUM SHAPE and the output says so. It is a
+    transparent, reproducible way to weight the three measured facets by their
+    own computed stabilities instead of by taste. The fractions are a modelling
+    choice; `s` is a convention. Vary it and the mixture moves, which is why
+    the report emits the sensitivity.
+    """
+    if not gammas:
+        raise ParticleStrainError("no surface energies supplied")
+    values = list(gammas.values())
+    spread = max(values) - min(values)
+    if scale_j_m2 is None:
+        scale_j_m2 = spread
+    if scale_j_m2 <= 0:
+        raise ParticleStrainError(
+            f"stability scale must be positive, got {scale_j_m2}; all facets "
+            "have the same surface energy so no ordering exists")
+    weights = {f: math.exp(-g / scale_j_m2) for f, g in gammas.items()}
+    total = sum(weights.values())
+    return {f: w / total for f, w in sorted(weights.items())}
+
+
+def size_sweep(taus: dict, family_fractions: dict, radii_nm, elastic,
+               param_sets, facet_overrides: dict = None,
+               shape_label: str = "mixture", a0_angstrom: float = None) -> list:
+    """
+    Lattice strain and ZFS shifts versus particle radius.
+
+    Everything here scales as 1/R exactly: the interior stress is
+    -(3/R) sum_f x_f tau_f, the strain is linear in it, and the ZFS shifts are
+    linear in the strain. So this sweep is not new physics, it is the SHAPE of
+    the prediction — a straight line through the origin in 1/R — which is what
+    a size-resolved measurement actually tests.
+
+    The point of emitting it is the lattice-strain column: nanodiamond lattice
+    parameter versus size is a standard PXRD experiment, and it probes the
+    interior strain WITHOUT any spin-strain coupling constant. A measured
+    a(1/R) slope either matches the tau-derived prediction or it does not, and
+    that comparison is unaffected by the ~1.65x coupling uncertainty that
+    dominates every MHz number in this module.
+
+    Returns one row per (radius, param_set); the lattice columns are identical
+    across param sets by construction, which is the property being advertised.
+    """
+    rows = []
+    for radius_nm in radii_nm:
+        res = evaluate(taus, family_fractions, radius_nm, elastic, param_sets,
+                       facet_overrides=facet_overrides,
+                       shape_label=shape_label, a0_angstrom=a0_angstrom)
+        a_strained = res.lattice_parameter_angstrom
+        for params in res.param_sets:
+            sub = res.rows_for(params)
+            rows.append({
+                "shape": shape_label,
+                "radius_nm": radius_nm,
+                "inverse_radius_per_nm": 1.0 / radius_nm,
+                "diameter_nm": 2.0 * radius_nm,
+                # --- coupling-independent block -----------------------------
+                "lattice_strain_percent": res.lattice_strain_percent,
+                "lattice_parameter_angstrom": a_strained,
+                "delta_a_angstrom": (None if a_strained is None
+                                     else a_strained - res.a0_angstrom),
+                "pressure_gpa": res.pressure_gpa,
+                # --- coupling-dependent block -------------------------------
+                "spin_strain_param_set": params,
+                "delta_D_mhz": sub[0]["delta_D_mhz"],
+                "delta_D_spread_over_axes_mhz": (
+                    max(r["delta_D_mhz"] for r in sub)
+                    - min(r["delta_D_mhz"] for r in sub)),
+                "E_max_mhz": max(abs(r["E_mhz"]) for r in sub),
+            })
+    return rows
+
+
+SWEEP_FIELDS = ["shape", "radius_nm", "diameter_nm", "inverse_radius_per_nm",
+                "lattice_strain_percent", "lattice_parameter_angstrom",
+                "delta_a_angstrom", "pressure_gpa",
+                "spin_strain_param_set", "delta_D_mhz",
+                "delta_D_spread_over_axes_mhz", "E_max_mhz",
+                "coupling_independent_columns", "epistemic_level"]
+
+COUPLING_FREE_COLUMNS = ("lattice_strain_percent lattice_parameter_angstrom "
+                         "delta_a_angstrom pressure_gpa")
+
+
+def sweep_rows_for_csv(rows) -> list:
+    out = []
+    for r in rows:
+        out.append({
+            "shape": r["shape"],
+            "radius_nm": _v(r["radius_nm"], 4),
+            "diameter_nm": _v(r["diameter_nm"], 4),
+            "inverse_radius_per_nm": _v(r["inverse_radius_per_nm"], 6),
+            "lattice_strain_percent": _v(r["lattice_strain_percent"], 6),
+            "lattice_parameter_angstrom": _v(r["lattice_parameter_angstrom"], 6),
+            "delta_a_angstrom": _v(r["delta_a_angstrom"], 6),
+            "pressure_gpa": _v(r["pressure_gpa"], 5),
+            "spin_strain_param_set": r["spin_strain_param_set"],
+            "delta_D_mhz": _v(r["delta_D_mhz"], 4),
+            "delta_D_spread_over_axes_mhz": _v(r["delta_D_spread_over_axes_mhz"], 6),
+            "E_max_mhz": _v(r["E_max_mhz"], 6),
+            "coupling_independent_columns": COUPLING_FREE_COLUMNS,
+            "epistemic_level": EPISTEMIC_LEVEL,
+        })
+    return out
+
+
+# ================================================================ mu_H scan
+# The equilibrium shape is a function of the hydrogen chemical potential, and
+# so therefore is the interior stress it produces. Because the (100) facets
+# carry a net COMPRESSIVE surface stress while (111) carries a tensile one,
+# growing the {100} fraction can drive the interior pressure through zero. That
+# sign change is the experimentally interesting prediction: it says an ODMR
+# shift should INVERT under annealing, which is a much sharper claim than any
+# single magnitude in this module.
+#
+# The scan is reported against (T, p_H2) rather than delta_mu, because delta_mu
+# is an abstract axis and "is this reachable?" is the whole question.
+# ============================================================================
+def surface_engine_resid(surface_energy, root, row):
+    """Ideal-gas fit residual converted to kelvin, for one pressure."""
+    return surface_energy.temperature_uncertainty_k(root, row["p_h2_pa"])
+
+
+def scan_mu_h(taus: dict, surface_energy_path, radius_nm: float, elastic,
+              param_sets, mu_range=(0.0, 3.0), n_points: int = 121) -> dict:
+    """Sweep delta_mu_H, rebuilding the Wulff shape at each step."""
+    import surface_energy
+
+    _g, _cfg, prov = load_surface_energies(surface_energy_path, 0.0)
+    available_from = prov["wulff_available_from_delta_mu_ev"]
+    if available_from is None:
+        raise ParticleStrainError(
+            "no delta_mu_H makes every gamma positive, so there is no Wulff "
+            "shape to scan at any hydrogen chemical potential")
+
+    lo = max(mu_range[0], available_from + 1e-6)
+    hi = mu_range[1]
+    if hi <= lo:
+        raise ParticleStrainError(
+            f"scan range ({mu_range[0]}, {mu_range[1]}) eV lies entirely below "
+            f"delta_mu = {available_from:.4f} eV, where the Wulff construction "
+            f"first exists")
+
+    def evaluate_at(delta_mu):
+        gammas, _c, _p = load_surface_energies(surface_energy_path, delta_mu)
+        fractions = wulff_area_fractions(gammas)
+        return evaluate(taus, fractions, radius_nm, elastic, param_sets,
+                        shape_label="wulff"), gammas, fractions
+
+    rows = []
+    for i in range(n_points):
+        d = lo + (hi - lo) * i / (n_points - 1)
+        result, gammas, fractions = evaluate_at(d)
+        d_lo, d_hi = result.delta_d_band_mhz()
+        rows.append({
+            "delta_mu_h_ev": d,
+            **{f"gamma_{k}_j_m2": gammas[k] for k in sorted(gammas)},
+            **{f"area_fraction_{k}": fractions.get(k, 0.0)
+               for k in sorted(gammas)},
+            "pressure_gpa": result.pressure_gpa,
+            "delta_D_band_lo_mhz": d_lo,
+            "delta_D_band_hi_mhz": d_hi,
+            "e_max_mhz": result.e_max_mhz,
+        })
+
+    # Locate every sign change of the interior pressure and refine it.
+    sign_changes = []
+    for a, b in zip(rows, rows[1:]):
+        pa, pb = a["pressure_gpa"], b["pressure_gpa"]
+        if pa == 0.0 or pa * pb >= 0:
+            continue
+        x_lo, x_hi = a["delta_mu_h_ev"], b["delta_mu_h_ev"]
+        f_lo = pa
+        for _ in range(60):
+            mid = 0.5 * (x_lo + x_hi)
+            p_mid = evaluate_at(mid)[0].pressure_gpa
+            if p_mid == 0.0:
+                x_lo = x_hi = mid
+                break
+            if (p_mid < 0) == (f_lo < 0):
+                x_lo, f_lo = mid, p_mid
+            else:
+                x_hi = mid
+        root = 0.5 * (x_lo + x_hi)
+        result, gammas, fractions = evaluate_at(root)
+        curve = surface_energy.tp_curve(root)
+        sign_changes.append({
+            "delta_mu_h_ev": root,
+            "direction": ("tension_to_compression" if pa < 0 else
+                          "compression_to_tension"),
+            "area_fractions": fractions,
+            "gammas_j_m2": gammas,
+            "pressure_gpa_at_root": result.pressure_gpa,
+            "tp_curve": curve,
+            # The ideal-gas fit residual: small, and NOT the dominant term.
+            "temperature_fit_residual_k": {
+                r["p_h2_bar"]: surface_engine_resid(surface_energy, root, r)
+                for r in curve},
+            # The missing zero-point energy: the dominant systematic, roughly
+            # thirty times larger, and one-directional.
+            "zpe_systematic": {
+                r["p_h2_bar"]: surface_energy.zpe_systematic_on_temperature(
+                    root, r["p_h2_pa"])
+                for r in curve},
+        })
+
+    return {
+        "rows": rows, "sign_changes": sign_changes,
+        "wulff_available_from_ev": available_from,
+        "scan_range_ev": [lo, hi],
+        "rrho_validation": surface_energy.rrho_validation(),
+    }
+
+
+SCAN_TP_FIELDS = ["delta_mu_h_ev", "direction", "p_h2_bar", "p_h2_pa",
+                  "p_h2_torr", "temperature_k", "temperature_c",
+                  "temperature_fit_residual_k",
+                  "zpe_delta_ev", "temperature_with_zpe_k",
+                  "temperature_with_zpe_c", "zpe_shift_k",
+                  "dominant_uncertainty", "reachable",
+                  "area_fraction_100", "area_fraction_111",
+                  "pressure_gpa_at_root", "what_is_computed",
+                  "what_is_ideal_gas", "epistemic_level"]
+
+DOMINANT_UNCERTAINTY = (
+    "missing zero-point energy: DELTA_ZPE = ZPE_ads(per H) - ZPE(H2)/2 ~ +0.20 "
+    "eV shifts the delta_mu axis rigidly, moving the crossing temperature by "
+    "of order 100-200 K (pressure dependent) TOWARDS lower temperature, i.e. "
+    "MORE accessible. The ideal-gas fit residual (temperature_fit_residual_k) "
+    "is ~30x smaller and is not the limiting term. ZPE is quoted, not applied, "
+    "because applying the H2 side alone would be unbalanced; "
+    "analyze_h_phonons.py computes the adsorbed side properly.")
+
+WHAT_IS_COMPUTED = ("DFT (this project): E(H2), slab total energies, hence "
+                    "gamma(H-rich) and its slope N_H/2A; tau per facet; the "
+                    "continuum interior stress and its sign")
+WHAT_IS_IDEAL_GAS = ("ideal-gas statistical thermodynamics with literature H2 "
+                     "spectroscopic constants: the entire T and p dependence "
+                     "(rigid rotor with explicit level sum, harmonic "
+                     "oscillator, no ZPE, no anharmonicity)")
+
+
+def sign_change_tp_rows(scan: dict) -> list:
+    rows = []
+    for sc in scan["sign_changes"]:
+        for r in sc["tp_curve"]:
+            z = sc["zpe_systematic"].get(r["p_h2_bar"], {})
+            t_zpe = z.get("temperature_with_zpe_k")
+            rows.append({
+                "delta_mu_h_ev": f"{sc['delta_mu_h_ev']:.6f}",
+                "direction": sc["direction"],
+                "p_h2_bar": f"{r['p_h2_bar']:.3e}",
+                "p_h2_pa": f"{r['p_h2_pa']:.3e}",
+                "p_h2_torr": f"{r['p_h2_torr']:.3e}",
+                "temperature_k": ("" if r["temperature_k"] is None
+                                  else f"{r['temperature_k']:.1f}"),
+                "temperature_c": ("" if r["temperature_c"] is None
+                                  else f"{r['temperature_c']:.1f}"),
+                "temperature_fit_residual_k": _v(
+                    sc["temperature_fit_residual_k"].get(r["p_h2_bar"],
+                                                         float("nan")), 1),
+                "zpe_delta_ev": _v(z.get("delta_zpe_ev", float("nan")), 4),
+                "temperature_with_zpe_k": ("" if t_zpe is None
+                                           else f"{t_zpe:.1f}"),
+                "temperature_with_zpe_c": ("" if t_zpe is None
+                                           else f"{t_zpe - 273.15:.1f}"),
+                "zpe_shift_k": ("" if z.get("shift_k") is None
+                                else f"{z['shift_k']:.1f}"),
+                "dominant_uncertainty": DOMINANT_UNCERTAINTY,
+                "reachable": r["reachable"],
+                "area_fraction_100": f"{sc['area_fractions'].get('100', 0.0):.4f}",
+                "area_fraction_111": f"{sc['area_fractions'].get('111', 0.0):.4f}",
+                "pressure_gpa_at_root": f"{sc['pressure_gpa_at_root']:.6f}",
+                "what_is_computed": WHAT_IS_COMPUTED,
+                "what_is_ideal_gas": WHAT_IS_IDEAL_GAS,
+                "epistemic_level": EPISTEMIC_LEVEL,
+            })
+    return rows
+
+
+def render_scan_report(scan: dict, meta: dict) -> str:
+    import surface_energy as surface_energy_module
+    L = ["# Interior-pressure sign change versus hydrogen chemical potential",
+         "",
+         f"**Epistemic level: {EPISTEMIC_LEVEL}.** Continuum model, literature "
+         "elastic constants, no explicit NV defect. See "
+         "`particle_strain_report_*.md` for the full caveat list.", "",
+         "## The prediction", "",
+         "The equilibrium (Wulff) habit is a function of the hydrogen chemical "
+         "potential. Lowering mu_H raises every surface energy, but at "
+         "facet-dependent rates, so the {100} area fraction grows. (100)-H "
+         "carries a net COMPRESSIVE surface stress while (111)-H carries a "
+         "tensile one, so growing the {100} fraction drives the particle "
+         "interior from tension towards compression -- and through zero.", "",
+         "At the crossing the ODMR shift changes sign: Delta D passes through "
+         "zero and reverses. That is a far sharper experimental signature than "
+         "any single magnitude this model produces, because it does not depend "
+         "on the spin-strain coupling set, on the particle radius, or on the "
+         "absolute size of tau -- only on the shape at which the two facet "
+         "contributions balance.", ""]
+
+    if not scan["sign_changes"]:
+        L += ["## Result: no sign change in the scanned window", "",
+              f"The interior pressure does not change sign for delta_mu_H "
+              f"between {scan['scan_range_ev'][0]:.3f} and "
+              f"{scan['scan_range_ev'][1]:.3f} eV. Either the window is too "
+              f"narrow or the effect does not occur; widen it with "
+              f"`--scan-mu-h LO HI` before concluding the latter.", ""]
+        return "\n".join(L) + "\n"
+
+    L += ["## Where it happens", ""]
+    for sc in scan["sign_changes"]:
+        L += [f"### delta_mu_H = {sc['delta_mu_h_ev']:.3f} eV "
+              f"({sc['direction'].replace('_', ' ')})", "",
+              "Equilibrium shape at the crossing: "
+              + ", ".join(f"{{{k}}} {v:.3f}"
+                          for k, v in sorted(sc["area_fractions"].items())),
+              "",
+              "| p_H2 (bar) | p_H2 (Torr) | T (K) | T (C) | ZPE-corrected T (C) "
+              "| ZPE shift (K) | ideal-gas resid (K) |",
+              "| ---: | ---: | ---: | ---: | ---: | ---: | ---: |"]
+        for r in sc["tp_curve"]:
+            resid = sc["temperature_fit_residual_k"].get(r["p_h2_bar"],
+                                                        float("nan"))
+            resid_txt = "" if resid != resid else f"{resid:.0f}"
+            z = sc["zpe_systematic"].get(r["p_h2_bar"], {})
+            t_zpe = z.get("temperature_with_zpe_k")
+            shift = z.get("shift_k")
+            zc = "" if t_zpe is None else f"{t_zpe - 273.15:.0f}"
+            zs = "" if shift is None else f"{shift:+.0f}"
+            if r["temperature_k"] is None:
+                L.append(f"| {r['p_h2_bar']:.0e} | {r['p_h2_torr']:.1e} | "
+                         f"not reached below 4000 K | | {zc} | {zs} | "
+                         f"{resid_txt} |")
+            else:
+                L.append(f"| {r['p_h2_bar']:.0e} | {r['p_h2_torr']:.1e} | "
+                         f"{r['temperature_k']:.0f} | "
+                         f"{r['temperature_c']:.0f} | {zc} | {zs} | "
+                         f"{resid_txt} |")
+        L += ["", "**The ZPE column is the honest number, and the ZPE shift is "
+              "the dominant uncertainty** -- see below. The ideal-gas residual "
+              "is roughly thirty times smaller and is not the limiting term.",
+              ""]
+
+    L += ["## What is computed and what is thermodynamics", "",
+          f"* **Computed here (DFT):** {WHAT_IS_COMPUTED}.",
+          f"* **Not computed (textbook):** {WHAT_IS_IDEAL_GAS}.", ""]
+    val = scan["rrho_validation"]
+    dz = surface_energy_module.delta_zpe_ev()
+    L += [f"The ideal-gas model reproduces the NIST-JANAF tabulation for H2 to "
+          f"{val['max_abs_deviation_ev'] * 1000:.0f} meV over 298-2000 K, which "
+          f"is the `ideal-gas resid` column above (a few K). That is NOT the "
+          f"dominant uncertainty.", "",
+          "## The dominant uncertainty: missing zero-point energy", "",
+          f"gamma was built from DFT total energies with no vibrational term on "
+          f"either side. Restoring zero-point energy consistently adds "
+          f"N_H*ZPE_ads to E_slab and ZPE(H2)/2 to mu_H, which is algebraically "
+          f"a rigid shift of the delta_mu axis by",
+          "",
+          f"    DELTA_ZPE = ZPE_ads(per H) - ZPE(H2)/2 ~ {dz:.3f} eV",
+          "",
+          f"using literature monohydride C-H frequencies (stretch ~"
+          f"{surface_energy_module.ZPE_CH_STRETCH_CM1:.0f} cm^-1, two bends ~"
+          f"{surface_energy_module.ZPE_CH_BEND_CM1:.0f} cm^-1) against "
+          f"ZPE(H2)/2 = {surface_energy_module.zpe_h2_per_h_ev():.3f} eV. "
+          f"Because the C-H zero-point energy is nearly facet-independent, it "
+          f"enters through N_H/2A exactly as mu_H does: the SHAPE at a given "
+          f"delta_mu is unchanged, but the (T, p) needed to reach it moves.",
+          "",
+          "DELTA_ZPE is positive, so the correction moves every crossing to "
+          "LOWER temperature -- the effect is more accessible than the "
+          "uncorrected numbers say, not less. The shift is pressure dependent "
+          "(d(delta_mu)/dT carries a (k/2)ln(p0/p) term), which is why the "
+          "column above varies with pressure.",
+          "",
+          "It is QUOTED, NOT APPLIED. Applying the H2 side alone would be an "
+          "unbalanced correction, and the adsorbed-H side needs a phonon "
+          "calculation. `make_h_phonons.py` generates that campaign and "
+          "`analyze_h_phonons.py` turns it into a computed DELTA_ZPE, at which "
+          "point this systematic becomes a number rather than an estimate.",
+          "", "The DFT surface energies and tau carry their own uncertainties, "
+          "not included in any column here; (100)'s gamma alone scatters by "
+          "0.024 J/m^2.", "",
+          "## What would falsify this, and what could stop it happening", "",
+          "* **The H-terminated surface is assumed stable at every mu_H.** Only "
+          "H-terminated facets were calculated, so nothing in this model stops "
+          "gamma_H rising indefinitely. In reality the surface dehydrogenates "
+          "or reconstructs once gamma_H exceeds the bare or reconstructed "
+          "surface energy, and that bound CANNOT be computed from this data "
+          "set -- it needs bare and reconstructed facet calculations. This is "
+          "the largest single caveat, and it bites hardest at exactly the "
+          "hydrogen-poor end where the crossing sits.",
+          "* **The CH4 / graphite+H2 bound on mu_H is still missing** and is "
+          "deliberately not invented here.",
+          "* **Kinetics are absent.** Nanodiamond surfaces graphitize on "
+          "vacuum annealing. A (T, p) point being thermodynamically reachable "
+          "does not mean the H-terminated particle survives the anneal, and "
+          "graphitization is not in this picture at all.",
+          "* **The particle is assumed to re-equilibrate its shape.** A real "
+          "particle whose habit is kinetically frozen will not follow the "
+          "Wulff locus, in which case the sign change tracks whatever the "
+          "actual facet fractions are rather than the equilibrium ones.",
+          "* The (100) surface energy is L1 with 0.024 J/m^2 of scatter "
+          "(`surface_energy.py`), and the crossing position depends on it.", ""]
+    return "\n".join(L) + "\n"
 
 
 # ---------------------------------------------------------------- reporting
@@ -897,6 +1479,9 @@ FACET_FIELDS = ["family", "miller", "orbit", "area_fraction",
                 "epistemic_level"]
 
 NV_FIELDS = ["shape", "radius_nm", "spin_strain_param_set", "nv_axis",
+             # coupling-INDEPENDENT: identical across param sets by
+             # construction. These are the columns a PXRD measurement tests.
+             "lattice_strain_percent", "lattice_parameter_angstrom",
              "eps_axial", "eps_transverse_xx", "eps_transverse_yy",
              "eps_transverse_xy",
              "delta_D_mhz", "delta_D_band_lo_mhz", "delta_D_band_hi_mhz",
@@ -905,7 +1490,7 @@ NV_FIELDS = ["shape", "radius_nm", "spin_strain_param_set", "nv_axis",
              "pressure_gpa", "epistemic_level", "elastic_source_type",
              "spin_strain_param_sets_emitted", "coupling_spread_factor",
              "spin_strain_param_set_reference", "sign_convention",
-             "coupling_uncertainty_note"]
+             "coupling_uncertainty_note", "channel_constraint_note"]
 
 COUPLING_NOTE = (
     "The spin-strain coupling set is the dominant uncertainty in these MHz "
@@ -951,6 +1536,8 @@ def nv_rows_for_csv(result: ParticleResult, meta: dict) -> list:
             "shape": result.shape, "radius_nm": _v(result.radius_nm, 4),
             "spin_strain_param_set": r["param_set"],
             "nv_axis": r["nv_axis"],
+            "lattice_strain_percent": _v(result.lattice_strain_percent, 6),
+            "lattice_parameter_angstrom": _v(result.lattice_parameter_angstrom, 6),
             "eps_axial": _v(r["eps_axial"], 9),
             "eps_transverse_xx": _v(r["eps_transverse_xx"], 9),
             "eps_transverse_yy": _v(r["eps_transverse_yy"], 9),
@@ -971,6 +1558,7 @@ def nv_rows_for_csv(result: ParticleResult, meta: dict) -> list:
             "spin_strain_param_set_reference": r["param_set_reference"],
             "sign_convention": SIGN_NOTE,
             "coupling_uncertainty_note": COUPLING_NOTE,
+            "channel_constraint_note": CHANNEL_NOTE,
         })
     return rows
 
@@ -1007,6 +1595,55 @@ def render_report(result: ParticleResult, meta: dict, taus: dict) -> str:
         L += ["**WARNING**: only one parameter set was emitted, so the "
               "dominant uncertainty in every MHz value below is invisible in "
               "this report. Rerun without `--params` to get the band.", ""]
+    # The coupling-free result goes FIRST, ahead of every MHz number, because
+    # it is the only line in this report that a measurement can test without
+    # adopting a spin-strain parameter set.
+    a_str = result.lattice_parameter_angstrom
+    dirs = meta.get("facet_lattice_directions")
+
+    L += ["## The testable prediction: which way the lattice moves", ""]
+    if dirs:
+        L += ["A {100}-dominated particle **contracts**; {110}- and "
+              "{111}-dominated particles **expand**. The direction alone "
+              "identifies the dominant facet family.", "",
+              "| dominant facet | mean f (N/m) | lattice strain at R=1.5 nm | "
+              "direction | da/d(1/R) (A per nm^-1) |",
+              "| --- | ---: | ---: | :---: | ---: |"]
+        for d in dirs:
+            L.append(f"| ({d['family']}) | {d['f_mean_n_per_m']:+.3f} | "
+                     f"{d['lattice_strain_percent']:+.4f} % | "
+                     f"**{d['direction']}** | "
+                     f"{d['da_d_inverse_radius_angstrom_nm']:+.6f} |")
+        L += ["",
+              "This is the most directly testable output of the whole "
+              "pipeline, and it is robust twice over:", "",
+              "1. **No spin-strain coupling enters it.** The ~1.65x spread "
+              "between published coupling sets, which dominates every MHz "
+              "number below, is simply absent here.",
+              "2. **The direction does not depend on the absolute tau scale.** "
+              "Scaling every tau by a common positive factor changes the "
+              "magnitude and not the sign. Only the sign of each family's mean "
+              "f matters, and (100) has the opposite sign to (110) and (111).",
+              "",
+              "Nanodiamond lattice parameter versus particle size is a standard "
+              "powder-XRD measurement. A size-resolved series therefore reads "
+              "off the dominant facet family from the SIGN of the shift, and "
+              "then tests the magnitude against the 1/R slope above. Both "
+              "comparisons are independent of the couplings.", ""]
+
+    L += [f"### This shape ({result.shape})", "",
+          f"* **Lattice strain = {result.lattice_strain_percent:+.4f} %** "
+          f"(linear, tr(eps)/3) at R = {result.radius_nm:.3f} nm "
+          f"-> **{'expands' if result.lattice_strain > 0 else 'contracts'}**",
+          (f"* **Lattice parameter a = {a_str:.6f} A** vs unstrained "
+           f"a0 = {result.a0_angstrom:.6f} A "
+           f"(delta_a = {a_str - result.a0_angstrom:+.6f} A)"
+           if a_str is not None else "* Lattice parameter: a0 not supplied"),
+          f"* Interior pressure = {result.pressure_gpa:+.5f} GPa "
+          "(compressive-positive)", "",
+          "Every quantity here scales as 1/R exactly; the companion "
+          "`..._size_sweep_*.csv` tabulates that curve.", ""]
+
     L += ["## Inputs", "",
           f"* Shape: **{result.shape}**, facet area fractions "
           + ", ".join(f"({k}) {v:.4f}" for k, v in sorted(result.family_fractions.items())),
@@ -1031,6 +1668,79 @@ def render_report(result: ParticleResult, meta: dict, taus: dict) -> str:
         t = taus[fam]
         L.append(f"| ({fam}) | {t['tau_xx']:+.4f} | {t['tau_yy']:+.4f} | "
                  f"{t['axis_x']} | {t['axis_y']} |")
+
+    sens = meta.get("channel_coupling_sensitivity")
+    if sens:
+        combo = sens["hydrostatic_combo_2h41_plus_h43_mhz_per_strain"]
+        step = 100.0 * sens["rel_step"]
+        L += ["", "## D and E are not equally constrained", "",
+              "Measured by perturbing each coupling by "
+              f"{step:.0f}% and recording the response "
+              "(computed here, not asserted):", "",
+              "| coupling | delta_D response | E response |",
+              "| --- | ---: | ---: |"]
+        for name, v in sens["couplings"].items():
+            d = "--" if v["d_rel"] is None else f"{100 * v['d_rel']:+.2f} %"
+            e = "--" if v["e_rel"] is None else f"{100 * v['e_rel']:+.2f} %"
+            L.append(f"| `{name}` | {d} | {e} |")
+        L += ["",
+              "The two channels use **disjoint** couplings: `h41`/`h43` set "
+              "delta_D, `h15`/`h16` set E, and `h25`/`h26` enter only at second "
+              "order.", "",
+              f"For the hydrostatic interior stress of a symmetry-complete "
+              f"particle, delta_D collapses onto the single combination "
+              f"**2*h41 + h43 = {combo:.1f} MHz/strain** — which is precisely "
+              "what a hydrostatic-pressure ODMR experiment measures. That is "
+              "why the axial channel, for all its 1.65x spread between "
+              "parameter sets, rests on a directly measured quantity.", "",
+              "E does not. `h15`/`h16` are untouched by any hydrostatic "
+              "measurement, and E carries a second, larger problem:"]
+        if sens["e_is_identically_zero"]:
+            L += ["", "> **E is identically zero for this shape.** Every "
+                  "symmetry-complete facet set gives a hydrostatic interior "
+                  "stress, and a hydrostatic strain produces no transverse "
+                  "splitting for *any* values of the couplings. The E reported "
+                  "below is zero by symmetry, not by cancellation.", ""]
+        else:
+            L += ["", "This shape carries a deliberate facet asymmetry, so E "
+                  "is non-zero here. Note that its magnitude is proportional "
+                  "to that asymmetry, which is an input, not a result.", ""]
+
+        L += ["**Consequence for the (100) anisotropy result.** The (100) "
+              "surface stress anisotropy is real and is the largest in the "
+              "set, but this model cannot presently turn it into a predicted "
+              "E: the volume average it computes has no deviatoric part for a "
+              "symmetric particle. The ranking of surfaces by anisotropy is "
+              "the defensible output; a predicted E in MHz is not.", "",
+              "### Open question: is the volume average the right object for E?",
+              "",
+              "**Hypothesis, not a result.** The volume-averaged interior "
+              "stress this module computes is exact for its TRACE — that is a "
+              "consequence of the divergence theorem and needs no assumption "
+              "about how stress is distributed inside the particle. The trace "
+              "is what delta_D responds to, which is why the axial channel is "
+              "on firm ground.",
+              "",
+              "E responds to the DEVIATORIC part, and the volume average of "
+              "the deviatoric stress is not the deviatoric stress anywhere in "
+              "particular. Inside a faceted particle the deviatoric field is "
+              "not uniform: it varies with position, and near a facet it "
+              "reflects that facet's own anisotropic tau rather than the "
+              "orientation average. In a 3 nm particle every NV sits within "
+              "~1.5 nm of a surface, so no NV samples the average.",
+              "",
+              "It is therefore possible that solving the elasticity "
+              "boundary-value problem for the actual polyhedron and evaluating "
+              "the strain at realistic NV depths yields a non-zero E from "
+              "computed geometry, with no assumed shape asymmetry anywhere. "
+              "That would put E on the same footing as delta_D instead of "
+              "resting on a free parameter.",
+              "",
+              "This is untested. It is recorded here as a question to settle, "
+              "not as a claim: the boundary-value problem has not been solved, "
+              "the depth dependence has not been computed, and it is not "
+              "established that the result is non-zero. Until it is, this "
+              "module reports E = 0 for symmetric particles and says why.", ""]
 
     L += ["", "## Validation: Laplace limit", "",
           "A sphere with isotropic tau must give a compressive pressure "
@@ -1159,6 +1869,19 @@ def main(argv=None) -> int:
                     help="bare additive shift of every gamma (J/m^2), for "
                          "testing the Wulff geometry only. Prefer --mu-h-offset, "
                          "which is the physical control.")
+    ap.add_argument("--sweep-radii-nm", type=float, nargs="+",
+                    default=list(DEFAULT_SWEEP_RADII_NM),
+                    metavar="R",
+                    help="particle radii (nm) for the size sweep, which is "
+                         "what a size-resolved PXRD series is compared "
+                         "against. Everything scales as 1/R.")
+    ap.add_argument("--scan-mu-h", type=float, nargs=2, default=None,
+                    metavar=("LO", "HI"),
+                    help="sweep delta_mu_H over this range (eV), rebuilding the "
+                         "Wulff shape at each step, and report where the "
+                         "interior pressure changes sign -- as a (T, p_H2) "
+                         "curve, not a number in eV. Implies --shape wulff.")
+    ap.add_argument("--scan-points", type=int, default=121)
     ap.add_argument("--no-frame-check", action="store_true",
                     help="skip verifying the production cells against "
                          "geometry._frame (output is marked unverified)")
@@ -1211,6 +1934,69 @@ def main(argv=None) -> int:
                   "and that is the dominant uncertainty in every Delta D "
                   "below; it is now invisible in this output.", file=sys.stderr)
 
+        if args.scan_mu_h:
+            import surface_energy
+            scan = scan_mu_h(taus, args.surface_energies, args.radius_nm,
+                             elastic, param_sets, tuple(args.scan_mu_h),
+                             args.scan_points)
+            out_dir = Path(args.out_dir)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            write_csv([{k: (f"{v:.6f}" if isinstance(v, float) else v)
+                        for k, v in r.items()} for r in scan["rows"]],
+                      list(scan["rows"][0].keys()),
+                      out_dir / "particle_strain_mu_h_scan.csv")
+            tp_rows = sign_change_tp_rows(scan)
+            if tp_rows:
+                write_csv(tp_rows, SCAN_TP_FIELDS,
+                          out_dir / "particle_strain_sign_change_tp.csv")
+            (out_dir / "particle_strain_sign_change_report.md").write_text(
+                render_scan_report(scan, {}))
+            print(f"# interior-pressure sign change vs mu_H   "
+                  f"[{EPISTEMIC_LEVEL}]")
+            print(f"# Wulff shape exists from delta_mu_H >= "
+                  f"{scan['wulff_available_from_ev']:.4f} eV; scanned "
+                  f"{scan['scan_range_ev'][0]:.3f}..{scan['scan_range_ev'][1]:.3f} eV")
+            print(f"# computed here: {WHAT_IS_COMPUTED}")
+            print(f"# NOT computed: {WHAT_IS_IDEAL_GAS}")
+            if not scan["sign_changes"]:
+                print("no interior-pressure sign change in the scanned window")
+            for sc in scan["sign_changes"]:
+                print(f"\nsign change at delta_mu_H = "
+                      f"{sc['delta_mu_h_ev']:.4f} eV ({sc['direction']}), "
+                      f"shape " + ", ".join(f"{{{k}}} {v:.3f}" for k, v
+                                            in sorted(sc["area_fractions"].items())))
+                print(f"{'p_H2 (bar)':>12s} {'p_H2 (Torr)':>12s} "
+                      f"{'T (K)':>9s} {'T (C)':>9s} {'ZPE T (C)':>10s} "
+                      f"{'ZPE dT':>8s} {'gasresid':>9s}")
+                for r in sc["tp_curve"]:
+                    resid = sc["temperature_fit_residual_k"].get(
+                        r["p_h2_bar"], float("nan"))
+                    z = sc["zpe_systematic"].get(r["p_h2_bar"], {})
+                    tz = z.get("temperature_with_zpe_k")
+                    sh = z.get("shift_k")
+                    zc = "" if tz is None else f"{tz - 273.15:10.0f}"
+                    zs = "" if sh is None else f"{sh:+8.0f}"
+                    if r["temperature_k"] is None:
+                        print(f"{r['p_h2_bar']:12.0e} {r['p_h2_torr']:12.1e} "
+                              f"{'>4000':>9s} {'':>9s} {zc:>10s} {zs:>8s} "
+                              f"{resid:9.0f}")
+                    else:
+                        print(f"{r['p_h2_bar']:12.0e} {r['p_h2_torr']:12.1e} "
+                              f"{r['temperature_k']:9.0f} "
+                              f"{r['temperature_c']:9.0f} {zc:>10s} {zs:>8s} "
+                              f"{resid:9.0f}")
+                print("  ZPE T = crossing temperature once the missing "
+                      "zero-point energy is restored (DOMINANT systematic, "
+                      f"DELTA_ZPE ~ {surface_energy.delta_zpe_ev():.3f} eV, "
+                      "estimated); gasresid = ideal-gas fit residual, ~30x "
+                      "smaller")
+            for name in ("particle_strain_mu_h_scan.csv",
+                         "particle_strain_sign_change_tp.csv",
+                         "particle_strain_sign_change_report.md"):
+                if (out_dir / name).exists():
+                    print(f"wrote {os.path.join(args.out_dir, name)}")
+            return 0
+
         wulff_note = ""
         overrides = {}
         se_provenance = None
@@ -1231,12 +2017,40 @@ def main(argv=None) -> int:
                                f"{args.wulff_gamma_offset:+.4f} J/m^2 -- NOT the "
                                f"equilibrium shape")
         elif args.shape == "mixture":
-            fractions, overrides = parse_fraction_spec(args.fraction)
+            if args.fraction:
+                fractions, overrides = parse_fraction_spec(args.fraction)
+            else:
+                # No --fraction given: derive the mixture from the surface
+                # energies rather than refusing. A Wulff construction is
+                # unavailable at every physically allowed mu_H (see
+                # stability_weighted_fractions), so this weights the three
+                # measured facets by their own computed stabilities using an
+                # offset-invariant rule, and labels the result as a modelling
+                # choice rather than an equilibrium shape.
+                gammas, gcfg, se_provenance = load_surface_energies(
+                    args.surface_energies, args.mu_h_offset)
+                fractions = stability_weighted_fractions(gammas)
+                scale = max(gammas.values()) - min(gammas.values())
+                wulff_note = (
+                    f"facet fractions DERIVED from {args.surface_energies} "
+                    f"(source_type {gcfg.get('source_type')}) at delta_mu_H = "
+                    f"{args.mu_h_offset:.4f} eV: "
+                    + ", ".join(f"({k}) gamma={v:+.4f}"
+                                for k, v in sorted(gammas.items()))
+                    + f" J/m^2, stability-weighted x_i ~ exp(-gamma_i/s) with "
+                      f"s = {scale:.4f} J/m^2 (the gamma spread). "
+                      "Offset-invariant: uses only gamma DIFFERENCES, not the "
+                      "H2-referenced absolute values. NOT an equilibrium shape "
+                      "-- Wulff is undefined here because gamma < 0 across the "
+                      "whole allowed mu_H range.")
         else:
             fractions = dict(SINGLE_FAMILY_SHAPES[args.shape])
 
         result = evaluate(taus, fractions, args.radius_nm, elastic, param_sets,
-                          overrides, shape_label=args.shape)
+                          overrides, shape_label=args.shape, a0_angstrom=a0)
+        sweep = size_sweep(taus, fractions, args.sweep_radii_nm, elastic,
+                           param_sets, facet_overrides=overrides,
+                           shape_label=args.shape, a0_angstrom=a0)
     except (ParticleStrainError, elastic_reference.ElasticReferenceError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
@@ -1264,6 +2078,22 @@ def main(argv=None) -> int:
         "surface_frame_check": cell_check,
         "laplace_validation": result.laplace,
         "sign_convention": SIGN_NOTE,
+        "channel_constraint_note": CHANNEL_NOTE,
+        "facet_lattice_directions": facet_lattice_directions(taus, elastic, a0),
+        "channel_coupling_sensitivity": channel_coupling_sensitivity(
+            result.eps_cubic, nv_spin_strain.nv_frames()[0][1], param_sets[0]),
+        "coupling_independent_observable": {
+            "quantity": "lattice_strain_percent / lattice_parameter_angstrom",
+            "value_percent": result.lattice_strain_percent,
+            "lattice_parameter_angstrom": result.lattice_parameter_angstrom,
+            "a0_unstrained_angstrom": a0,
+            "why": ("interior strain BEFORE any spin-strain coupling is "
+                    "applied, so none of the ~1.65x coupling uncertainty "
+                    "enters. Directly measurable as the cubic lattice "
+                    "parameter vs particle size by powder XRD; see "
+                    f"particle_strain_size_sweep_{args.shape}.csv for the 1/R "
+                    "curve to compare a size-resolved series against."),
+        },
         **{k: prov[k] for k in ("elastic_source_type", "elastic_citation",
                                 "elastic_config_path", "cli_override_used")},
     }
@@ -1274,6 +2104,8 @@ def main(argv=None) -> int:
               out_dir / f"particle_strain_facets_{tag}.csv")
     write_csv(nv_rows_for_csv(result, meta), NV_FIELDS,
               out_dir / f"particle_strain_nv_{tag}.csv")
+    write_csv(sweep_rows_for_csv(sweep), SWEEP_FIELDS,
+              out_dir / f"particle_strain_size_sweep_{tag}.csv")
     (out_dir / f"particle_strain_meta_{tag}.json").write_text(
         json.dumps(meta, indent=2, default=str) + "\n")
     (out_dir / f"particle_strain_report_{tag}.md").write_text(

@@ -597,3 +597,104 @@ def test_coupling_choice_does_not_move_the_strain():
 def test_evaluate_refuses_an_empty_parameter_set_list():
     with pytest.raises(ps.ParticleStrainError, match="no spin-strain parameter"):
         ps.evaluate(TAU, {"111": 1.0}, 1.5, ELASTIC, [])
+
+
+# ============================================== mu_H scan and the sign change
+@pytest.mark.skipif(not os.path.isfile(TAU_CSV), reason="run fit_tau_infinity first")
+def test_mu_h_scan_finds_the_interior_pressure_sign_change():
+    """The experimentally actionable prediction: the interior pressure passes
+    through zero as the equilibrium habit shifts from {111} towards {100}."""
+    scan = ps.scan_mu_h(TAU, SURFACE_ENERGIES, 1.5, ELASTIC,
+                        [nv_spin_strain.UDVARHELYI_DFT,
+                         nv_spin_strain.BARSON_SCALED],
+                        mu_range=(0.0, 3.0), n_points=61)
+    assert len(scan["sign_changes"]) == 1
+    sc = scan["sign_changes"][0]
+    assert sc["direction"] == "tension_to_compression"
+    assert 1.0 < sc["delta_mu_h_ev"] < 2.0
+    # The root really is a root.
+    assert abs(sc["pressure_gpa_at_root"]) < 1e-6
+    # It happens because {100} has grown to a substantial fraction.
+    assert 0.1 < sc["area_fractions"]["100"] < 0.4
+
+
+@pytest.mark.skipif(not os.path.isfile(TAU_CSV), reason="run fit_tau_infinity first")
+def test_the_sign_change_does_not_depend_on_the_coupling_set_or_the_radius():
+    """Why the sign change is a better prediction than any magnitude: it is a
+    property of the mechanics, not of the spin-strain couplings or the size."""
+    base = ps.scan_mu_h(TAU, SURFACE_ENERGIES, 1.5, ELASTIC,
+                        [nv_spin_strain.UDVARHELYI_DFT], (0.0, 3.0), 41)
+    other_couplings = ps.scan_mu_h(TAU, SURFACE_ENERGIES, 1.5, ELASTIC,
+                                   [nv_spin_strain.BARSON_SCALED], (0.0, 3.0), 41)
+    bigger = ps.scan_mu_h(TAU, SURFACE_ENERGIES, 4.0, ELASTIC,
+                          [nv_spin_strain.UDVARHELYI_DFT], (0.0, 3.0), 41)
+    root = base["sign_changes"][0]["delta_mu_h_ev"]
+    assert other_couplings["sign_changes"][0]["delta_mu_h_ev"] == \
+        pytest.approx(root, abs=1e-6)
+    assert bigger["sign_changes"][0]["delta_mu_h_ev"] == \
+        pytest.approx(root, abs=1e-6)
+
+
+@pytest.mark.skipif(not os.path.isfile(TAU_CSV), reason="run fit_tau_infinity first")
+def test_delta_d_band_straddles_zero_across_the_sign_change():
+    """Delta D must actually invert, not merely shrink."""
+    scan = ps.scan_mu_h(TAU, SURFACE_ENERGIES, 1.5, ELASTIC,
+                        [nv_spin_strain.UDVARHELYI_DFT,
+                         nv_spin_strain.BARSON_SCALED], (0.0, 3.0), 61)
+    root = scan["sign_changes"][0]["delta_mu_h_ev"]
+    below = [r for r in scan["rows"] if r["delta_mu_h_ev"] < root - 0.3]
+    above = [r for r in scan["rows"] if r["delta_mu_h_ev"] > root + 0.3]
+    assert below and above
+    assert all(r["delta_D_band_hi_mhz"] < 0 for r in below)
+    assert all(r["delta_D_band_lo_mhz"] > 0 for r in above)
+
+
+@pytest.mark.skipif(not os.path.isfile(TAU_CSV), reason="run fit_tau_infinity first")
+def test_sign_change_is_reachable_in_a_vacuum_anneal():
+    """The whole point of the T-p conversion: is the condition accessible?
+
+    Pinned as a real claim so that a change in the underlying surface energies
+    which pushes it out of reach shows up as a test failure, not as a quietly
+    different number.
+    """
+    scan = ps.scan_mu_h(TAU, SURFACE_ENERGIES, 1.5, ELASTIC,
+                        [nv_spin_strain.UDVARHELYI_DFT], (0.0, 3.0), 61)
+    curve = {r["p_h2_bar"]: r for r in scan["sign_changes"][0]["tp_curve"]}
+    # At 1 bar of H2 it needs a temperature no nanodiamond survives.
+    assert curve[1.0]["temperature_k"] > 1500
+    # In vacuum it lands in an ordinary annealing window.
+    assert 700 < curve[1e-9]["temperature_k"] < 1000
+    assert 600 < curve[1e-12]["temperature_k"] < 900
+    # Lower pressure always means a lower temperature.
+    temps = [curve[p]["temperature_k"] for p in sorted(curve, reverse=True)]
+    assert temps == sorted(temps, reverse=True)
+
+
+@pytest.mark.skipif(not os.path.isfile(TAU_CSV), reason="run fit_tau_infinity first")
+def test_scan_refuses_a_window_below_the_wulff_threshold():
+    with pytest.raises(ps.ParticleStrainError, match="lies entirely below"):
+        ps.scan_mu_h(TAU, SURFACE_ENERGIES, 1.5, ELASTIC,
+                     [nv_spin_strain.UDVARHELYI_DFT], (0.0, 0.1), 11)
+
+
+@pytest.mark.skipif(not os.path.isfile(TAU_CSV), reason="run fit_tau_infinity first")
+def test_scan_cli_writes_a_tp_curve_that_labels_its_provenance(tmp_path):
+    rc = ps.main(["--scan-mu-h", "0", "3", "--scan-points", "41",
+                  "--tau-csv", TAU_CSV, "--runs-dir", PRODUCTION,
+                  "--surface-energies", SURFACE_ENERGIES,
+                  "--out-dir", str(tmp_path)])
+    assert rc == 0
+    tp = (tmp_path / "particle_strain_sign_change_tp.csv").read_text()
+    assert "temperature_k" in tp and "p_h2_torr" in tp
+    assert "ideal-gas statistical thermodynamics" in tp
+    assert "DFT (this project)" in tp
+    report = (tmp_path / "particle_strain_sign_change_report.md").read_text()
+    # The dominant caveat: nothing in this model stops gamma_H rising, because
+    # only H-terminated facets were ever calculated.
+    assert "assumed stable at every mu_H" in report
+    assert "dehydrogenates or reconstructs" in report
+    assert "graphitize" in report
+    assert "CH4" in report                             # bound still flagged
+    assert "NIST-JANAF" in report
+    scan_csv = (tmp_path / "particle_strain_mu_h_scan.csv").read_text()
+    assert "area_fraction_100" in scan_csv and "pressure_gpa" in scan_csv
