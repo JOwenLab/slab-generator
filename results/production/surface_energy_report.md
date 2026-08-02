@@ -132,4 +132,5 @@ Zero-point energy is EXCLUDED. gamma was derived from DFT total energies with no
 ## Warnings
 
 * C100: fitted mu_C = -18.434129349 Ry drifts -0.0524 mRy from the bulk reference -18.434076958 Ry. The slab interior is not perfectly bulk-like, or the ladder is not in the asymptotic regime. gamma for this surface is downgraded to L1; per-slab scatter is 0.0241 J/m^2.
+* dehydrogenation bound MISSING: no bare-facet ladder found. gamma_H(mu_H) is therefore unbounded above in this model and every hydrogen-poor statement is an extrapolation with no stop. Generate the campaign with make_bare_slabs.py and rerun with --bare-runs-dir.
 

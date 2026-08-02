@@ -110,7 +110,7 @@ DEFAULT_PREFIX = "thick_a0corr"
 # this. (110) and (111) sit at ~0.003 mRy; (100) at ~0.05 mRy.
 DEFAULT_MU_C_TOL_MRY = 0.02
 
-RUN_RE = re.compile(r"^(?P<prefix>.+)~(?P<surface>C\d{3})_(?P<layers>\d+)L$")
+RUN_RE = re.compile(r"^(?P<prefix>.+)~(?P<surface>C\d{3}[a-z]*)_(?P<layers>\d+)L$")
 
 ORIENTATION = {"C100": "(100)", "C110": "(110)", "C111": "(111)"}
 
@@ -651,6 +651,102 @@ def temperature_uncertainty_k(delta_mu_ev: float, p_pa: float,
     return abs(dev_ev / 2.0 / slope) if slope else float("nan")
 
 
+# ===================================================== dehydrogenation bound
+# gamma_H(mu_H) rises without limit in this model because only H-terminated
+# facets were ever calculated. The physical stop is dehydrogenation: once
+#
+#     gamma_H(delta_mu)  >  gamma_bare
+#
+# the bare surface is the stable one and every H-terminated statement beyond
+# that delta_mu describes a surface that is not there. gamma_bare carries no
+# hydrogen, so it does not move with mu_H, and the inequality becomes a hard
+# ceiling:
+#
+#     delta_mu_max = (gamma_bare - gamma_H_rich) / (N_H / 2A)
+#
+# The bound needs the LOWEST bare surface energy for each facet. On (111) the
+# unreconstructed 1x1 is well above the Pandey 2x1 reconstruction, so using it
+# alone gives a ceiling that is too high -- i.e. too permissive, claiming the
+# H-terminated surface survives further than it does. `make_bare_slabs.py`
+# generates both and this function takes the minimum.
+# ===========================================================================
+BARE_SURFACE_KEY = re.compile(r"^(C\d{3})([a-z]*)$")
+
+
+def bare_base_surface(tag: str) -> str:
+    """'C111pandey' -> 'C111'. The reconstruction is a variant of the facet."""
+    m = BARE_SURFACE_KEY.match(tag)
+    if not m:
+        raise SurfaceEnergyError(f"unrecognised bare surface tag {tag!r}")
+    return m.group(1)
+
+
+def lowest_bare_gamma(bare_fits: list) -> dict:
+    """Per facet, the lowest gamma_bare across all reconstruction variants."""
+    best = {}
+    for f in bare_fits:
+        if f.n_H:
+            raise SurfaceEnergyError(
+                f"{f.surface}: a bare-facet fit must contain no hydrogen, "
+                f"found N_H = {f.n_H}")
+        base = bare_base_surface(f.surface)
+        if base not in best or f.gamma_h_rich_j_m2 < best[base].gamma_h_rich_j_m2:
+            best[base] = f
+    return best
+
+
+def dehydrogenation_bound(h_fits: list, bare_fits: list) -> dict:
+    """delta_mu ceiling per facet, and the binding one overall.
+
+    Returns per-facet entries plus 'binding_surface' and
+    'delta_mu_max_ev' -- the smallest ceiling, since the first facet to
+    dehydrogenate invalidates the H-terminated Wulff construction.
+    """
+    if not bare_fits:
+        return {
+            "available": False,
+            "reason": ("no bare-facet ladder found. gamma_H(mu_H) is therefore "
+                       "unbounded above in this model and every hydrogen-poor "
+                       "statement is an extrapolation with no stop. Generate "
+                       "the campaign with make_bare_slabs.py and rerun with "
+                       "--bare-runs-dir."),
+            "per_surface": {}, "delta_mu_max_ev": None,
+            "binding_surface": None,
+        }
+    best_bare = lowest_bare_gamma(bare_fits)
+    per_surface, ceilings = {}, {}
+    for f in h_fits:
+        bare = best_bare.get(f.surface)
+        if bare is None:
+            per_surface[f.surface] = {
+                "available": False,
+                "reason": f"no bare ladder for {f.surface}",
+            }
+            continue
+        if f.slope_j_m2_per_ev <= 0:
+            continue
+        ceiling = ((bare.gamma_h_rich_j_m2 - f.gamma_h_rich_j_m2)
+                   / f.slope_j_m2_per_ev)
+        per_surface[f.surface] = {
+            "available": True,
+            "gamma_h_rich_j_m2": f.gamma_h_rich_j_m2,
+            "gamma_bare_j_m2": bare.gamma_h_rich_j_m2,
+            "bare_variant": bare.surface,
+            "slope_j_m2_per_ev": f.slope_j_m2_per_ev,
+            "delta_mu_max_ev": ceiling,
+            "bare_epistemic_level": bare.epistemic_level,
+        }
+        ceilings[f.surface] = ceiling
+    binding = min(ceilings, key=ceilings.get) if ceilings else None
+    return {
+        "available": bool(ceilings),
+        "reason": "",
+        "per_surface": per_surface,
+        "delta_mu_max_ev": ceilings.get(binding) if binding else None,
+        "binding_surface": binding,
+    }
+
+
 # ------------------------------------------------------- mu_H dependence
 @dataclass
 class Crossing:
@@ -1049,7 +1145,8 @@ def render_report(fits: list, ref: Reference, crossings: list, meta: dict) -> st
 
 # -------------------------------------------------------------------- main
 def run(runs_dir, reference_dir, out_dir, prefix, exclude_layers, mu_h_range,
-        mu_h_points, mu_c_tol_mry, config_out=None) -> dict:
+        mu_h_points, mu_c_tol_mry, config_out=None,
+        bare_runs_dir=None, bare_prefix="bare") -> dict:
     ref = load_references(reference_dir)
     by_surface = load_slab_energies(runs_dir, prefix)
     for points in by_surface.values():
@@ -1058,6 +1155,25 @@ def run(runs_dir, reference_dir, out_dir, prefix, exclude_layers, mu_h_range,
     fits = [fit_surface_energy(s, pts, ref, exclude_layers)
             for s, pts in sorted(by_surface.items())]
     warnings = grade_fits(fits, mu_c_tol_mry)
+
+    # --- bare facets: the ceiling on delta_mu, if the campaign has been run
+    bare_fits = []
+    if bare_runs_dir and Path(bare_runs_dir).is_dir():
+        try:
+            bare_by_surface = load_slab_energies(bare_runs_dir, bare_prefix)
+        except SurfaceEnergyError:
+            bare_by_surface = {}
+        for surface, pts in sorted(bare_by_surface.items()):
+            check_reference_consistency(pts, ref)
+            excl = [n for n in exclude_layers
+                    if any(p.layers == n for p in pts)] \
+                if len(pts) > 3 else []
+            bare_fits.append(fit_surface_energy(surface, pts, ref, excl))
+        grade_fits(bare_fits, mu_c_tol_mry)
+    bound = dehydrogenation_bound(fits, bare_fits)
+    if not bound["available"]:
+        warnings.append(
+            "dehydrogenation bound MISSING: " + bound["reason"])
     crossings = find_crossings(fits, mu_h_range)
     avail = wulff_available_from_ev(fits)
 
@@ -1069,6 +1185,9 @@ def run(runs_dir, reference_dir, out_dir, prefix, exclude_layers, mu_h_range,
         "mu_c_tol_mry": mu_c_tol_mry,
         "wulff_available_from_ev": avail,
         "rrho_validation": validation,
+        "dehydrogenation_bound": bound,
+        "delta_zpe_estimate_ev": delta_zpe_ev(),
+        "delta_zpe_source": ZPE_ESTIMATE_SOURCE,
         "warnings": warnings,
     }
 
@@ -1106,8 +1225,9 @@ def run(runs_dir, reference_dir, out_dir, prefix, exclude_layers, mu_h_range,
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(config, indent=2) + "\n")
 
-    return {"fits": fits, "reference": ref, "crossings": crossings,
-            "meta": meta, "config": config}
+    return {"fits": fits, "bare_fits": bare_fits, "reference": ref,
+            "crossings": crossings, "meta": meta, "config": config,
+            "dehydrogenation_bound": bound}
 
 
 def main(argv=None) -> int:
@@ -1128,6 +1248,12 @@ def main(argv=None) -> int:
                     help="warn and downgrade to L1 if the fitted mu_C drifts "
                          "from the bulk reference by more than this "
                          "(default: %(default)s)")
+    ap.add_argument("--bare-runs-dir", default=None,
+                    help="directory holding the bare-facet ladder from "
+                         "make_bare_slabs.py. Without it the dehydrogenation "
+                         "ceiling on delta_mu cannot be computed and is "
+                         "reported as MISSING.")
+    ap.add_argument("--bare-prefix", default="bare")
     ap.add_argument("--write-config", nargs="?", const=DEFAULT_CONFIG_OUT,
                     default=None, metavar="PATH",
                     help=f"regenerate the surface-energy config "
@@ -1137,7 +1263,8 @@ def main(argv=None) -> int:
     try:
         result = run(args.runs_dir, args.reference_dir, args.out_dir,
                      args.prefix, args.exclude_layers, args.mu_h_range,
-                     args.mu_h_points, args.mu_c_tol_mry, args.write_config)
+                     args.mu_h_points, args.mu_c_tol_mry, args.write_config,
+                     args.bare_runs_dir, args.bare_prefix)
     except SurfaceEnergyError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
@@ -1167,6 +1294,24 @@ def main(argv=None) -> int:
                   f"delta_mu = {c.delta_mu_ev:+.4f} eV{tag}")
     for w in meta["warnings"]:
         print(f"WARNING: {w}", file=sys.stderr)
+    bound = result["dehydrogenation_bound"]
+    if bound["available"]:
+        print(f"# dehydrogenation ceiling: delta_mu <= "
+              f"{bound['delta_mu_max_ev']:.4f} eV "
+              f"(binding facet {bound['binding_surface']})")
+        for s, e in sorted(bound["per_surface"].items()):
+            if e.get("available"):
+                print(f"#   {s}: gamma_bare {e['gamma_bare_j_m2']:+.4f} "
+                      f"({e['bare_variant']}) -> delta_mu_max "
+                      f"{e['delta_mu_max_ev']:.4f} eV")
+    else:
+        print("# dehydrogenation ceiling: MISSING (no bare-facet ladder). "
+              "gamma_H is unbounded above in this model; run "
+              "make_bare_slabs.py.")
+    dz = result["meta"]["delta_zpe_estimate_ev"]
+    print(f"# DELTA_ZPE (estimated, NOT applied) = {dz:+.4f} eV -- shifts the "
+          f"delta_mu axis and is the DOMINANT systematic on any temperature "
+          f"below; see make_h_phonons.py / analyze_h_phonons.py")
     val = result["meta"]["rrho_validation"]
     print(f"# H2 ideal-gas mapping (RRHO, literature constants, no ZPE): "
           f"max deviation from NIST-JANAF "
