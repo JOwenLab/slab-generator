@@ -173,9 +173,17 @@ def generate(name, n_layers, a0=G.A0_DEFAULT, symmetric=False,
             f"(literature retrieval pass). Note: {motif['notes']}")
     if motif.get("status") == "published-model-coordinates":
         if symmetric:
-            raise ValueError("literature motifs: symmetric slabs not yet "
-                             "supported (single stored face); use --bottom")
-        s = splice_literature(name, motif, n_layers, a0, bottom)
+            nreg = motif["region_layers"]
+            n_src = n_layers + nreg + 4
+            if n_src % 2:
+                n_src += 1
+            src = splice_literature(name, motif, n_src, a0, bottom="bare")
+            # literature region thickness + margin (mean (111) layer
+            # spacing ~ a0*sqrt(3)/6)
+            depth = nreg * (a0 * np.sqrt(3) / 6.0) * 1.2 + 1.5
+            s = G.invert_symmetrize(src, n_layers, recon_depth=depth)
+        else:
+            s = splice_literature(name, motif, n_layers, a0, bottom)
         if repeat != (1, 1):
             s = G.repeat_inplane(s, *repeat)
         return s, motif
@@ -183,12 +191,16 @@ def generate(name, n_layers, a0=G.A0_DEFAULT, symmetric=False,
     o = motif["orientation"]
     if motif.get("face") == "TDB":
         if symmetric:
-            raise ValueError("TDB-face motifs: asymmetric slabs only "
-                             "(bottom face is SDB); use --bottom")
-        if n_layers % 2 == 0:
-            raise ValueError("TDB-face (111): use an ODD layer count "
-                             "(TDB top + SDB bottom)")
-        s = G.seiwatz_slab(motif["tdb_variant"], n_layers, a0, bottom)
+            n_src = n_layers + 7
+            if n_src % 2 == 0:
+                n_src += 1          # seiwatz_slab requires ODD layer counts
+            src = G.seiwatz_slab(motif["tdb_variant"], n_src, a0, "bare")
+            s = G.invert_symmetrize(src, n_layers, recon_depth=4.0)
+        else:
+            if n_layers % 2 == 0:
+                raise ValueError("TDB-face (111) asymmetric: use an ODD "
+                                 "layer count (TDB top + SDB bottom)")
+            s = G.seiwatz_slab(motif["tdb_variant"], n_layers, a0, bottom)
         if repeat != (1, 1):
             s = G.repeat_inplane(s, *repeat)
         return s, motif
@@ -284,7 +296,7 @@ def to_cif(slab, vacuum, comment):
 
 
 QE_PSEUDO = {"C": ("12.011", "C.pbe-n-kjpaw_psl.1.0.0.UPF"),
-             "H": ("1.008",  "H.pbe-kjpaw_psl.1.0.0.UPF"),
+             "H": ("1.008",  "H_ONCV_PBE-1.0.oncvpsp.upf"),
              "O": ("15.999", "O.pbe-n-kjpaw_psl.1.0.0.UPF"),
              "F": ("18.998", "F.pbe-n-kjpaw_psl.1.0.0.UPF")}
 
@@ -367,7 +379,7 @@ def to_qe(slab, vacuum, comment, fix_bottom_layers=2, symmetric=False,
             "  outdir        = './tmp'",
             "  forc_conv_thr = 1.0d-4",
             "  etot_conv_thr = 1.0d-5"]
-    if cell2d and not symmetric:
+    if not symmetric:
         ctrl += ["  tefield       = .true.",
                  "  dipfield      = .true."]
     ctrl.append("/")
@@ -383,7 +395,7 @@ def to_qe(slab, vacuum, comment, fix_bottom_layers=2, symmetric=False,
                  "  occupations = 'smearing'",
                  "  smearing    = 'mv'",
                  "  degauss     = 0.01"]
-    if cell2d and not symmetric:
+    if not symmetric:
         sys_block += ["  edir     = 3",
                       "  emaxpos  = 0.95",
                       "  eopreg   = 0.05",
@@ -468,8 +480,16 @@ def main():
     ap.add_argument("--layers", type=int, default=10)
     ap.add_argument("--vacuum", type=float, default=15.0)
     ap.add_argument("--a0", type=float, default=G.A0_DEFAULT)
-    ap.add_argument("--symmetric", action="store_true")
-    ap.add_argument("--bottom", choices=["bare", "H"], default="bare")
+    ap.add_argument("--symmetric", action="store_true", default=True,
+                    help="(default) both faces identical: dipole-free, "
+                         "equal surface stress")
+    ap.add_argument("--asymmetric", action="store_true",
+                    help="EXPLICIT opt-out: single reconstructed top face "
+                         "with --bottom {bare,H}; QE dipole correction is "
+                         "enabled automatically. Not for surface-stress "
+                         "production runs.")
+    ap.add_argument("--bottom", choices=["bare", "H"], default="bare",
+                    help="bottom termination (only with --asymmetric)")
     ap.add_argument("--repeat", type=int, nargs=2, default=(1, 1))
     ap.add_argument("--format", choices=["poscar", "xyz", "cif", "qe"],
                     default="poscar")
@@ -484,6 +504,12 @@ def main():
 
     if a.relax_mode == "cell2d" and a.format != "qe":
         sys.exit("ERROR: --relax-mode cell2d is only valid with --format qe")
+    if a.asymmetric:
+        a.symmetric = False
+        print("WARNING: --asymmetric requested: faces differ "
+              f"(top=motif, bottom={a.bottom}). QE dipole correction will "
+              "be enabled; do NOT use for surface-stress production runs.",
+              file=sys.stderr)
 
     slab, motif = generate(a.motif, a.layers, a.a0, a.symmetric,
                            a.bottom, tuple(a.repeat))

@@ -8,60 +8,58 @@ Important caveat: QE slab stress is averaged over the full vacuum-containing sup
 
 | Run | Orient. | Formula | sigma_xx (kbar) | sigma_yy (kbar) | mean sigma (kbar) | tau_mean (N/m) | effective pressure (kbar) | Interpretation |
 |---|---:|---:|---:|---:|---:|---:|---:|---|
-| C100_2x1_H_6L_strain_biaxial_m0p005_scf | (100) | C12H2 | 9.360 | -61.420 | -26.030 | -2.6660 | 26.030 | compressive_inplane_pressure_like |
-| C100_2x1_H_6L_strain_biaxial_m0p010_scf | (100) | C12H2 | 25.520 | -50.330 | -12.405 | -1.2705 | 12.405 | compressive_inplane_pressure_like |
-| C100_2x1_H_6L_strain_biaxial_m0p013_scf | (100) | C12H2 | 33.870 | -44.590 | -5.360 | -0.5490 | 5.360 | compressive_inplane_pressure_like |
-| C100_2x1_H_6L_strain_biaxial_m0p015_scf | (100) | C12H2 | 42.390 | -38.710 | 1.840 | 0.1885 | -1.840 | tensile_inplane_stress_like |
-| C100_2x1_H_6L_strain_biaxial_m0p020_scf | (100) | C12H2 | 60.000 | -26.500 | 16.750 | 1.7155 | -16.750 | tensile_inplane_stress_like |
-| C100_2x1_H_6L_strain_biaxial_p0p000_scf | (100) | C12H2 | -6.150 | -72.020 | -39.085 | -4.0031 | 39.085 | compressive_inplane_pressure_like |
-| C100_2x1_H_6L_strain_biaxial_p0p005_scf | (100) | C12H2 | -21.030 | -82.170 | -51.600 | -5.2849 | 51.600 | compressive_inplane_pressure_like |
-| C100_2x1_H_6L_strain_biaxial_p0p010_scf | (100) | C12H2 | -35.310 | -91.890 | -63.600 | -6.5140 | 63.600 | compressive_inplane_pressure_like |
-| C100_2x1_H_6L_strain_x_m0p005_scf | (100) | C12H2 | 9.160 | -72.220 | -31.530 | -3.2293 | 31.530 | compressive_inplane_pressure_like |
-| C100_2x1_H_6L_strain_x_m0p010_scf | (100) | C12H2 | 24.990 | -72.420 | -23.715 | -2.4289 | 23.715 | compressive_inplane_pressure_like |
-| C100_2x1_H_6L_strain_x_p0p000_scf | (100) | C12H2 | -6.150 | -72.020 | -39.085 | -4.0031 | 39.085 | compressive_inplane_pressure_like |
-| C100_2x1_H_6L_strain_x_p0p005_scf | (100) | C12H2 | -20.940 | -71.840 | -46.390 | -4.7513 | 46.390 | compressive_inplane_pressure_like |
-| C100_2x1_H_6L_strain_x_p0p010_scf | (100) | C12H2 | -35.250 | -71.670 | -53.460 | -5.4754 | 53.460 | compressive_inplane_pressure_like |
-| C100_2x1_H_6L_strain_y_m0p005_scf | (100) | C12H2 | -6.010 | -61.270 | -33.640 | -3.4454 | 33.640 | compressive_inplane_pressure_like |
-| C100_2x1_H_6L_strain_y_m0p010_scf | (100) | C12H2 | -5.890 | -50.110 | -28.000 | -2.8678 | 28.000 | compressive_inplane_pressure_like |
-| C100_2x1_H_6L_strain_y_p0p000_scf | (100) | C12H2 | -6.150 | -72.020 | -39.085 | -4.0031 | 39.085 | compressive_inplane_pressure_like |
-| C100_2x1_H_6L_strain_y_p0p005_scf | (100) | C12H2 | -6.300 | -82.390 | -44.345 | -4.5419 | 44.345 | compressive_inplane_pressure_like |
-| C100_2x1_H_6L_strain_y_p0p010_scf | (100) | C12H2 | -6.460 | -92.380 | -49.420 | -5.0616 | 49.420 | compressive_inplane_pressure_like |
-| C100_2x1_H_6L_stress_scf | (100) | C12H2 | -6.150 | -72.020 | -39.085 | -4.0031 | 39.085 | compressive_inplane_pressure_like |
-| C110_1x1_H_6L_SSSP_strain_biaxial_m0p005_scf | (110) | C12H2 | 0.430 | 23.030 | 11.730 | 1.3025 | -11.730 | tensile_inplane_stress_like |
-| C110_1x1_H_6L_SSSP_strain_biaxial_m0p010_scf | (110) | C12H2 | 24.250 | 41.740 | 32.995 | 3.6637 | -32.995 | tensile_inplane_stress_like |
-| C110_1x1_H_6L_SSSP_strain_biaxial_p0p000_scf | (110) | C12H2 | -22.180 | 5.080 | -8.550 | -0.9494 | 8.550 | compressive_inplane_pressure_like |
-| C110_1x1_H_6L_SSSP_strain_biaxial_p0p005_scf | (110) | C12H2 | -43.610 | -12.130 | -27.870 | -3.0946 | 27.870 | compressive_inplane_pressure_like |
-| C110_1x1_H_6L_SSSP_strain_biaxial_p0p010_scf | (110) | C12H2 | -63.920 | -28.620 | -46.270 | -5.1377 | 46.270 | compressive_inplane_pressure_like |
-| C110_1x1_H_6L_SSSP_strain_x_m0p005_scf | (110) | C12H2 | -1.990 | 7.430 | 2.720 | 0.3020 | -2.720 | tensile_inplane_stress_like |
-| C110_1x1_H_6L_SSSP_strain_x_m0p010_scf | (110) | C12H2 | 18.930 | 9.840 | 14.385 | 1.5973 | -14.385 | tensile_inplane_stress_like |
-| C110_1x1_H_6L_SSSP_strain_x_p0p000_scf | (110) | C12H2 | -22.180 | 5.080 | -8.550 | -0.9494 | 8.550 | compressive_inplane_pressure_like |
-| C110_1x1_H_6L_SSSP_strain_x_p0p005_scf | (110) | C12H2 | -41.670 | 2.810 | -19.430 | -2.1574 | 19.430 | compressive_inplane_pressure_like |
-| C110_1x1_H_6L_SSSP_strain_x_p0p010_scf | (110) | C12H2 | -60.480 | 0.610 | -29.935 | -3.3239 | 29.935 | compressive_inplane_pressure_like |
-| C110_1x1_H_6L_SSSP_strain_y_m0p005_scf | (110) | C12H2 | -19.920 | 20.450 | 0.265 | 0.0294 | -0.265 | near_zero_inplane_mean_stress |
-| C110_1x1_H_6L_SSSP_strain_y_m0p010_scf | (110) | C12H2 | -17.490 | 36.060 | 9.285 | 1.0310 | -9.285 | tensile_inplane_stress_like |
-| C110_1x1_H_6L_SSSP_strain_y_p0p000_scf | (110) | C12H2 | -22.180 | 5.080 | -8.550 | -0.9494 | 8.550 | compressive_inplane_pressure_like |
-| C110_1x1_H_6L_SSSP_strain_y_p0p005_scf | (110) | C12H2 | -24.260 | -10.080 | -17.170 | -1.9065 | 17.170 | compressive_inplane_pressure_like |
-| C110_1x1_H_6L_SSSP_strain_y_p0p010_scf | (110) | C12H2 | -26.180 | -25.020 | -25.600 | -2.8425 | 25.600 | compressive_inplane_pressure_like |
-| C110_1x1_H_6L_SSSP_stress_scf | (110) | C12H2 | -22.180 | 5.080 | -8.550 | -0.9494 | 8.550 | compressive_inplane_pressure_like |
-| C111_1x1_H_6L_strain_biaxial_m0p005_scf | (111) | C6H | 16.610 | 16.610 | 16.610 | 1.7218 | -16.610 | tensile_inplane_stress_like |
-| C111_1x1_H_6L_strain_biaxial_m0p010_scf | (111) | C6H | 36.560 | 36.560 | 36.560 | 3.7899 | -36.560 | tensile_inplane_stress_like |
-| C111_1x1_H_6L_strain_biaxial_p0p000_scf | (111) | C6H | -2.440 | -2.440 | -2.440 | -0.2529 | 2.440 | compressive_inplane_pressure_like |
-| C111_1x1_H_6L_strain_biaxial_p0p005_scf | (111) | C6H | -20.620 | -20.620 | -20.620 | -2.1375 | 20.620 | compressive_inplane_pressure_like |
-| C111_1x1_H_6L_strain_biaxial_p0p010_scf | (111) | C6H | -37.970 | -37.970 | -37.970 | -3.9360 | 37.970 | compressive_inplane_pressure_like |
-| C111_1x1_H_6L_stress_scf | (111) | C6H | -2.440 | -2.440 | -2.440 | -0.2529 | 2.440 | compressive_inplane_pressure_like |
+| C100_2x1_H_6L_sym_strain_biaxial_m0p005_scf | (100) | C24H8 | 28.870 | -29.560 | -0.345 | -0.0250 | -0.345 | near_zero_inplane_mean_stress |
+| C100_2x1_H_6L_sym_strain_biaxial_m0p010_scf | (100) | C24H8 | 52.590 | -7.470 | 22.560 | 1.6357 | 22.560 | compressive_inplane_pressure_like |
+| C100_2x1_H_6L_sym_strain_biaxial_p0p000_scf | (100) | C24H8 | 6.110 | -50.710 | -22.300 | -1.6169 | -22.300 | tensile_inplane_stress_like |
+| C100_2x1_H_6L_sym_strain_biaxial_p0p005_scf | (100) | C24H8 | -15.690 | -70.940 | -43.315 | -3.1406 | -43.315 | tensile_inplane_stress_like |
+| C100_2x1_H_6L_sym_strain_biaxial_p0p010_scf | (100) | C24H8 | -36.570 | -90.300 | -63.435 | -4.5994 | -63.435 | tensile_inplane_stress_like |
+| C100_2x1_H_6L_sym_strain_x_m0p005_scf | (100) | C24H8 | 28.150 | -50.380 | -11.115 | -0.8059 | -11.115 | tensile_inplane_stress_like |
+| C100_2x1_H_6L_sym_strain_x_m0p010_scf | (100) | C24H8 | 50.950 | -50.060 | 0.445 | 0.0323 | 0.445 | near_zero_inplane_mean_stress |
+| C100_2x1_H_6L_sym_strain_x_p0p000_scf | (100) | C24H8 | 6.110 | -50.710 | -22.300 | -1.6169 | -22.300 | tensile_inplane_stress_like |
+| C100_2x1_H_6L_sym_strain_x_p0p005_scf | (100) | C24H8 | -15.170 | -51.040 | -33.105 | -2.4003 | -33.105 | tensile_inplane_stress_like |
+| C100_2x1_H_6L_sym_strain_x_p0p010_scf | (100) | C24H8 | -35.730 | -51.380 | -43.555 | -3.1580 | -43.555 | tensile_inplane_stress_like |
+| C100_2x1_H_6L_sym_strain_y_m0p005_scf | (100) | C24H8 | 6.730 | -29.990 | -11.630 | -0.8433 | -11.630 | tensile_inplane_stress_like |
+| C100_2x1_H_6L_sym_strain_y_m0p010_scf | (100) | C24H8 | 7.340 | -8.520 | -0.590 | -0.0428 | -0.590 | near_zero_inplane_mean_stress |
+| C100_2x1_H_6L_sym_strain_y_p0p000_scf | (100) | C24H8 | 6.110 | -50.710 | -22.300 | -1.6169 | -22.300 | tensile_inplane_stress_like |
+| C100_2x1_H_6L_sym_strain_y_p0p005_scf | (100) | C24H8 | 5.500 | -70.700 | -32.600 | -2.3637 | -32.600 | tensile_inplane_stress_like |
+| C100_2x1_H_6L_sym_strain_y_p0p010_scf | (100) | C24H8 | 4.890 | -90.000 | -42.555 | -3.0855 | -42.555 | tensile_inplane_stress_like |
+| C100_2x1_H_6L_sym_stress_scf | (100) | C24H8 | 6.110 | -50.710 | -22.300 | -1.6169 | -22.300 | tensile_inplane_stress_like |
+| C110_1x1_H_6L_SSSP_sym_strain_biaxial_m0p005_scf | (110) | C12H4 | 55.250 | 79.890 | 67.570 | 5.4385 | 67.570 | compressive_inplane_pressure_like |
+| C110_1x1_H_6L_SSSP_sym_strain_biaxial_m0p010_scf | (110) | C12H4 | 89.530 | 110.040 | 99.785 | 8.0314 | 99.785 | compressive_inplane_pressure_like |
+| C110_1x1_H_6L_SSSP_sym_strain_biaxial_p0p000_scf | (110) | C12H4 | 22.700 | 50.850 | 36.775 | 2.9599 | 36.775 | compressive_inplane_pressure_like |
+| C110_1x1_H_6L_SSSP_sym_strain_biaxial_p0p005_scf | (110) | C12H4 | -8.210 | 22.890 | 7.340 | 0.5908 | 7.340 | compressive_inplane_pressure_like |
+| C110_1x1_H_6L_SSSP_sym_strain_biaxial_p0p010_scf | (110) | C12H4 | -37.550 | -4.050 | -20.800 | -1.6741 | -20.800 | tensile_inplane_stress_like |
+| C110_1x1_H_6L_SSSP_sym_strain_x_m0p005_scf | (110) | C12H4 | 51.150 | 54.820 | 52.985 | 4.2646 | 52.985 | compressive_inplane_pressure_like |
+| C110_1x1_H_6L_SSSP_sym_strain_x_m0p010_scf | (110) | C12H4 | 80.560 | 58.920 | 69.740 | 5.6131 | 69.740 | compressive_inplane_pressure_like |
+| C110_1x1_H_6L_SSSP_sym_strain_x_p0p000_scf | (110) | C12H4 | 22.700 | 50.850 | 36.775 | 2.9599 | 36.775 | compressive_inplane_pressure_like |
+| C110_1x1_H_6L_SSSP_sym_strain_x_p0p005_scf | (110) | C12H4 | -4.800 | 47.020 | 21.110 | 1.6991 | 21.110 | compressive_inplane_pressure_like |
+| C110_1x1_H_6L_SSSP_sym_strain_x_p0p010_scf | (110) | C12H4 | -31.370 | 43.310 | 5.970 | 0.4805 | 5.970 | compressive_inplane_pressure_like |
+| C110_1x1_H_6L_SSSP_sym_strain_y_m0p005_scf | (110) | C12H4 | 26.570 | 75.600 | 51.085 | 4.1117 | 51.085 | compressive_inplane_pressure_like |
+| C110_1x1_H_6L_SSSP_sym_strain_y_m0p010_scf | (110) | C12H4 | 30.660 | 100.680 | 65.670 | 5.2856 | 65.670 | compressive_inplane_pressure_like |
+| C110_1x1_H_6L_SSSP_sym_strain_y_p0p000_scf | (110) | C12H4 | 22.700 | 50.850 | 36.775 | 2.9599 | 36.775 | compressive_inplane_pressure_like |
+| C110_1x1_H_6L_SSSP_sym_strain_y_p0p005_scf | (110) | C12H4 | 19.060 | 26.420 | 22.740 | 1.8303 | 22.740 | compressive_inplane_pressure_like |
+| C110_1x1_H_6L_SSSP_sym_strain_y_p0p010_scf | (110) | C12H4 | 15.640 | 2.290 | 8.965 | 0.7216 | 8.965 | compressive_inplane_pressure_like |
+| C110_1x1_H_6L_SSSP_sym_stress_scf | (110) | C12H4 | 22.700 | 50.850 | 36.775 | 2.9599 | 36.775 | compressive_inplane_pressure_like |
+| C111_1x1_H_6L_sym_strain_biaxial_m0p005_scf | (111) | C6H2 | 30.520 | 30.520 | 30.520 | 2.2619 | 30.520 | compressive_inplane_pressure_like |
+| C111_1x1_H_6L_sym_strain_biaxial_m0p010_scf | (111) | C6H2 | 59.180 | 59.180 | 59.180 | 4.3859 | 59.180 | compressive_inplane_pressure_like |
+| C111_1x1_H_6L_sym_strain_biaxial_p0p000_scf | (111) | C6H2 | 3.190 | 3.190 | 3.190 | 0.2364 | 3.190 | compressive_inplane_pressure_like |
+| C111_1x1_H_6L_sym_strain_biaxial_p0p005_scf | (111) | C6H2 | -22.810 | -22.810 | -22.810 | -1.6905 | -22.810 | tensile_inplane_stress_like |
+| C111_1x1_H_6L_sym_strain_biaxial_p0p010_scf | (111) | C6H2 | -47.550 | -47.550 | -47.550 | -3.5240 | -47.550 | tensile_inplane_stress_like |
+| C111_1x1_H_6L_sym_stress_scf | (111) | C6H2 | 3.190 | 3.190 | 3.190 | 0.2364 | 3.190 | compressive_inplane_pressure_like |
 
 ## Interpretation
 
 - `tau_mean_n_per_m` is the approximate per-surface in-plane stress after correcting for vacuum dilution.
-- `effective_inplane_pressure_kbar = -mean(sigma_xx, sigma_yy)` uses QE stress sign convention to provide pressure-like language.
-- Large positive effective pressure indicates a compressive pressure-like surface contribution; large negative values indicate tensile stress-like behavior.
+- Sign convention (CLAUDE.md section 2): positive `sigma` means the cell is COMPRESSED and wants to expand; negative `sigma` means it is in TENSION. Anchored on bulk diamond at -1% strain, which gives sigma = P = +162.86 kbar.
+- `effective_inplane_pressure_kbar = +mean(sigma_xx, sigma_yy)`, the in-plane analogue of the QE pressure `P = +(1/3)tr(sigma)`. It shares `sigma`'s sign, so it is positive under compression.
+- Accordingly, large positive effective pressure indicates a compressive, pressure-like in-plane surface contribution; large negative values indicate a tensile one.
 - These values are best used to rank orientations and functionalizations before doing explicit strain fits.
 
 ## Excluded or Flagged Rows
 
 | Run | Reason |
 |---|---|
-| C110_1x1_H_6L | exclude_from_comparison_pseudo_mismatch |
+| none | |
 
 ## Next Step
 

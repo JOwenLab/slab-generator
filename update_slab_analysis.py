@@ -80,6 +80,16 @@ def main() -> None:
         "--skip-strain-fit", action="store_true", help="Skip fit_slab_strain.py"
     )
     parser.add_argument(
+        "--run-nv", action="store_true",
+        help="Also run nv_spin_strain.py (exact NV Hamiltonian; Python-only, "
+             "not run by default)",
+    )
+    parser.add_argument(
+        "--reference-config", default="config/reference_pbe_sssp.json",
+        help="Bulk/elastic reference config passed to nv_spin_strain.py "
+             "when --run-nv is given",
+    )
+    parser.add_argument(
         "--continue-on-error",
         action="store_true",
         help="Continue to subsequent steps even if one fails",
@@ -97,6 +107,11 @@ def main() -> None:
         ("analyze_slab_stress.py", not args.skip_stress,     "analyze_slab_stress.py"),
         ("fit_slab_strain.py",     not args.skip_strain_fit, "fit_slab_strain.py"),
     ]
+    if args.run_nv:
+        steps.append((
+            "nv_spin_strain.py", True,
+            ["nv_spin_strain.py", "--reference-config", args.reference_config],
+        ))
 
     statuses: dict[str, bool] = {}
 
@@ -105,7 +120,8 @@ def main() -> None:
             print(f"\n[SKIP] {label}")
             statuses[label] = True
             continue
-        ok = run_step(label, [args.python, script], args.continue_on_error)
+        cmd = [args.python] + (script if isinstance(script, list) else [script])
+        ok = run_step(label, cmd, args.continue_on_error)
         statuses[label] = ok
 
     print_summary(statuses)

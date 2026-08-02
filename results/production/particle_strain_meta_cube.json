@@ -1,0 +1,130 @@
+{
+  "epistemic_level": "L1",
+  "shape": "cube",
+  "wulff_note": "",
+  "radius_nm": 1.5,
+  "family_fractions": {
+    "100": 1.0
+  },
+  "facet_overrides": {},
+  "tau_csv": "results/production/tau_infinity.csv",
+  "tau_epistemic_level": "L2",
+  "tau_layers_used": "8L 10L 12L 16L",
+  "tau_layers_excluded": "6L",
+  "a0_angstrom": 3.572997470394866,
+  "C11": 1076.0,
+  "C12": 125.0,
+  "C44": 576.0,
+  "param_sets": [
+    "udvarhelyi2018_dft",
+    "barson2017_scaled"
+  ],
+  "param_set_references": {
+    "udvarhelyi2018_dft": "Udvarhelyi et al., PRB 98, 075201 (2018), Table I",
+    "barson2017_scaled": "Udvarhelyi tensor rescaled to Barson et al., Nano Lett. 17, 1496 (2017) axial/transverse magnitudes"
+  },
+  "coupling_spread_factor": 1.6540000000000463,
+  "coupling_uncertainty_note": "The spin-strain coupling set is the dominant uncertainty in these MHz values: the two published sets differ by ~1.65x on the axial channel for identical strain. delta_D_band_lo/hi span ALL emitted sets for this NV axis and are the honest quantity; any single delta_D_mhz is one corner of that band.",
+  "delta_mu_h_ev": 0.0,
+  "surface_energy_provenance": null,
+  "surface_frame_check": {
+    "111": {
+      "supercell": [
+        1,
+        1
+      ],
+      "run": "final_stress~C111_24L_stress_scf"
+    },
+    "100": {
+      "supercell": [
+        1,
+        2
+      ],
+      "run": "thick_a0corr_stress~C100_10L_stress_scf"
+    },
+    "110": {
+      "supercell": [
+        1,
+        1
+      ],
+      "run": "thick_a0corr_stress~C110_10L_stress_scf"
+    }
+  },
+  "laplace_validation": {
+    "pressure_model_gpa": 1.333333333333333,
+    "pressure_laplace_gpa": 1.3333333333333333,
+    "relative_error": 1.6653345369377348e-16,
+    "max_off_diagonal_pa": 17420.93122840949,
+    "max_diagonal_anisotropy_pa": 782.4336926937103,
+    "n_directions": 2000,
+    "tau_n_per_m": 1.0,
+    "radius_m": 1.5e-09
+  },
+  "sign_convention": "tau in tau_infinity.csv is in the PROJECT convention, where positive tau is COMPRESSIVE surface stress (the released cell expands; verified against free 2D vc-relax on all three surfaces, six axes). load_taus() negates it once to obtain the continuum surface stress f, positive = TENSILE. sigma_*_project: positive = COMPRESSED (CLAUDE.md sec 2, QE convention). sigma_*_mech: positive = TENSION (continuum convention, used internally and by nv_spin_strain). pressure_gpa: positive = compressive.",
+  "channel_constraint_note": "D and E are NOT equally well constrained. delta_D depends only on h41 and h43, and for the hydrostatic interior stress of a symmetry-complete particle only through the single combination (2*h41 + h43) -- which is exactly what a hydrostatic-pressure ODMR measurement determines. E depends on a DISJOINT pair, h15 and h16, which no hydrostatic measurement constrains at all; which of the two dominates depends on the strain state (h15 multiplies the in-plane difference eps_xx - eps_yy and eps_xy, h16 the shears eps_xz and eps_yz, both in the NV frame), so neither can be neglected in general. E additionally vanishes identically for any symmetry-complete facet set, so a non-zero E requires an assumed shape asymmetry that nothing in this pipeline constrains. E therefore carries strictly more uncertainty than delta_D: different and less well measured couplings, times an unconstrained geometric prefactor.",
+  "facet_lattice_directions": [
+    {
+      "family": "100",
+      "f_mean_n_per_m": 1.9958710000000002,
+      "lattice_strain_percent": -0.20069089994972342,
+      "da_d_inverse_radius_angstrom_nm": -0.010756021167774464,
+      "direction": "contract"
+    },
+    {
+      "family": "110",
+      "f_mean_n_per_m": -3.2709655,
+      "lattice_strain_percent": 0.3289055304172949,
+      "da_d_inverse_radius_angstrom_nm": 0.017627679422698148,
+      "direction": "expand"
+    },
+    {
+      "family": "111",
+      "f_mean_n_per_m": -0.483334,
+      "lattice_strain_percent": 0.0486007038712921,
+      "da_d_inverse_radius_angstrom_nm": 0.0026047528798730495,
+      "direction": "expand"
+    }
+  ],
+  "channel_coupling_sensitivity": {
+    "couplings": {
+      "h41": {
+        "d_rel": 0.060910815939305564,
+        "e_rel": null
+      },
+      "h43": {
+        "d_rel": -0.010910815939296967,
+        "e_rel": null
+      },
+      "h15": {
+        "d_rel": 0.0,
+        "e_rel": null
+      },
+      "h16": {
+        "d_rel": -6.449456845639705e-14,
+        "e_rel": null
+      },
+      "h25": {
+        "d_rel": 0.0,
+        "e_rel": null
+      },
+      "h26": {
+        "d_rel": 4.299637897093137e-14,
+        "e_rel": null
+      }
+    },
+    "hydrostatic_combo_2h41_plus_h43_mhz_per_strain": -10540.0,
+    "e_is_identically_zero": "True",
+    "rel_step": 0.05
+  },
+  "coupling_independent_observable": {
+    "quantity": "lattice_strain_percent / lattice_parameter_angstrom",
+    "value_percent": -0.20069089994972342,
+    "lattice_parameter_angstrom": 3.56582678961635,
+    "a0_unstrained_angstrom": 3.572997470394866,
+    "why": "interior strain BEFORE any spin-strain coupling is applied, so none of the ~1.65x coupling uncertainty enters. Directly measurable as the cubic lattice parameter vs particle size by powder XRD; see particle_strain_size_sweep_cube.csv for the 1/R curve to compare a size-resolved series against."
+  },
+  "elastic_source_type": "literature",
+  "elastic_citation": "Diamond cubic stiffness constants as used by Udvarhelyi, Shkolnikov, Gali, Burkard & Palyi, Phys. Rev. B 98, 075201 (2018), attributed therein to E. Kaxiras, Atomic and Electronic Structure of Solids (Cambridge University Press, 2003).",
+  "elastic_config_path": "config/reference_pbe_sssp.json",
+  "cli_override_used": false
+}

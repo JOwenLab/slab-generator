@@ -193,8 +193,11 @@ def assemble_records(fit_rows, stress_lookup):
         stress_slope = ffloat(primary.get("stress_slope_kbar_per_eps"))
         tau_at_zero = ffloat(primary.get("tau_at_zero_n_per_m"))
 
+        # Pressure proxy, same sign as sigma: CLAUDE.md section 2 fixes
+        # P = +(1/3) tr(sigma), so positive means compressed. This was negated
+        # until 2026-08, giving a "pressure" that was positive under tension.
         approx_pressure_proxy = (
-            -residual_mean_stress if residual_mean_stress is not None else None
+            residual_mean_stress if residual_mean_stress is not None else None
         )
 
         # ── Diagnostic fields from x-only / y-only fits (if present) ────────
@@ -338,19 +341,111 @@ def apply_coupling_constants(records, d_shift_const, e_split_const):
     return records
 
 
+def stress_sense(stress):
+    """
+    The word describing what a residual mean stress physically is.
+
+    Sign convention (CLAUDE.md section 2, corrected 2026-08): positive sigma
+    means the cell is COMPRESSED and wants to expand; negative means it is in
+    TENSION. Anchored on bulk diamond at -1% strain, sigma = P = +162.86 kbar.
+
+    This exists because the magnitude branches below use abs(stress) — which is
+    correct, since the risk scores are magnitude-based — but the *word* must
+    still follow the sign. Hardcoding "compression" mislabelled H/H-(100), whose
+    residual is negative and therefore tensile.
+    """
+    return "compressive" if stress > 0 else "tensile"
+
+
+# Crystallographic commentary is a property of the surface, not of any
+# particular calculation, so it is the only thing about a surface that is
+# written down here. Every NUMBER in the summary comes from the records.
+ORIENTATION_NOTES = {
+    "(100)": "the 2×1 reconstruction breaks the 4-fold symmetry of the ideal "
+             "face, so σxx and σyy are inequivalent",
+    "(110)": "the two in-plane directions are crystallographically "
+             "inequivalent, so σxx ≠ σyy",
+    "(111)": "C₃ᵥ site symmetry forces σxx = σyy, so the in-plane anisotropy "
+             "vanishes identically",
+}
+
+
+def _summary_ordering_lines(records):
+    """
+    Per-surface summary generated from the records.
+
+    This block used to hardcode "~66 kbar anisotropy" and "~38 kbar compressive
+    mean stress" for H-(100), plus a fixed H-(100) > H-(110) > H-(111) ordering.
+    Those numbers came from the *asymmetric* 6L dataset now archived under
+    results/archive_asymmetric_6L/, so after the symmetric slabs replaced it the
+    generator kept emitting archive-derived values into the corrected report —
+    a silent violation of CLAUDE.md invariant 8, which forbids mixing the two.
+    The ordering was equally stale: it no longer matches the scores.
+
+    Reading the values from the records means the failure cannot recur: if the
+    underlying numbers change, this prose changes with them, and if a surface
+    is missing it is absent rather than asserted from memory.
+    """
+    ranked = sorted(records,
+                    key=lambda r: r.get("overall_NV_perturbation_score") or 0.0,
+                    reverse=True)
+    if not ranked:
+        return ["**Summary ordering:** no records to summarise.", ""]
+
+    order = " > ".join(r.get("orientation") or r["series"] for r in ranked)
+    lines = [
+        "**Summary ordering:**",
+        "",
+        f"{order} in predicted NV perturbation "
+        "(by `overall_NV_perturbation_score`; all values below are read from "
+        "this run's fits, not transcribed).",
+        "",
+    ]
+
+    for rank, r in enumerate(ranked, start=1):
+        orient = r.get("orientation") or ""
+        stress = r.get("residual_mean_stress_kbar")
+        anis = r.get("inplane_anisotropy_kbar")
+        risk = r.get("qualitative_NV_risk", "unknown")
+
+        stress_txt = (f"{abs(stress):.1f} kbar {stress_sense(stress)}"
+                      if stress is not None else "not determined")
+        anis_txt = (f"{anis:+.1f} kbar" if anis is not None else "not determined")
+        note = ORIENTATION_NOTES.get(orient)
+
+        detail = (f"residual mean stress {stress_txt}, in-plane anisotropy "
+                  f"σxx − σyy = {anis_txt}")
+        if note:
+            detail += f"; {note}"
+
+        lines += [
+            f"- **{orient or r['series']}** (rank {rank} of {len(ranked)}, "
+            f"{risk} risk): {detail}.",
+            "",
+        ]
+
+    lines += [
+        "Ranking and channel separation are the defensible outputs here; the "
+        "absolute values rest on a proxy model (see Limitations).",
+        "",
+    ]
+    return lines
+
+
 def make_interpretation(r):
     """Build a concise, human-readable interpretation string."""
     parts = []
 
     stress = r.get("residual_mean_stress_kbar")
     if stress is not None:
+        sense = stress_sense(stress)
         if abs(stress) > 20:
             parts.append(
-                f"large residual mean compression ({stress:.1f} kbar)"
+                f"large residual mean {sense} stress ({stress:.1f} kbar)"
             )
         elif abs(stress) > 5:
             parts.append(
-                f"moderate residual mean stress ({stress:.1f} kbar)"
+                f"moderate residual mean {sense} stress ({stress:.1f} kbar)"
             )
         else:
             parts.append(
@@ -404,7 +499,9 @@ def write_report(records, path, ref_data, d_shift_const, e_split_const):
         "of NV resonance shifts.  They rank surface orientations by their likely "
         "ability to perturb NV magnetic resonance through slab-induced strain.  "
         "Quantitative estimates require explicit NV-containing supercells and "
-        "measured or calculated spin-strain coupling constants.",
+        "measured or calculated spin-strain coupling constants.  For the exact "
+        "spin-strain Hamiltonian and elastic-reference-aware predictions, see "
+        "`nv_spin_strain.py`, the authoritative physics model.",
         "",
         f"Generated by `nv_strain_model.py`.",
         "",
@@ -475,7 +572,7 @@ def write_report(records, path, ref_data, d_shift_const, e_split_const):
         "| Score | Formula | Physical link |",
         "|-------|---------|---------------|",
         "| `axial_D_shift_risk_score` | |residual_mean_stress_kbar| / max | "
-        "Mean in-plane compression drives hydrostatic-like strain → ΔD |",
+        "Mean in-plane stress of either sign drives hydrostatic-like strain → ΔD |",
         "| `transverse_E_risk_score` | |inplane_anisotropy_kbar| / max | "
         "Anisotropy (σxx − σyy) drives transverse strain → E |",
         "| `overall_NV_perturbation_score` | 0.5 × D_score + 0.5 × E_score | "
@@ -484,6 +581,17 @@ def write_report(records, path, ref_data, d_shift_const, e_split_const):
         "All scores are normalised to the **maximum value in this dataset**; the "
         "leading surface always scores 1.0.  Qualitative categories: "
         f"high ≥ {SCORE_HIGH}, moderate ≥ {SCORE_MODERATE}, low < {SCORE_MODERATE}.",
+        "",
+        "**Why these scores use sigma (kbar), not tau (N/m):** slab cell height "
+        "(vacuum + carbon thickness) differs by orientation in this dataset "
+        "(e.g. (100) vs (110) vs (111)), so tau = sigma × Lz × 0.005 would rescale "
+        "each orientation's raw score by a *different* factor before the "
+        "per-dataset max-normalisation above, which could reorder the ranking "
+        "across orientations rather than just changing units. `tau_mean_n_per_m` "
+        "is still reported below for absolute, vacuum-independent, "
+        "literature-comparable magnitude; the authoritative physics model "
+        "(`nv_spin_strain.py`) consumes strain directly, so this choice does not "
+        "affect its predictions.",
         "",
     ]
     if d_shift_const is not None or e_split_const is not None:
@@ -619,28 +727,7 @@ def write_report(records, path, ref_data, d_shift_const, e_split_const):
             "",
         ]
 
-    lines += [
-        "**Summary ordering:**",
-        "",
-        "H-(100) > H-(110) > H-(111) in predicted NV perturbation.",
-        "",
-        "- **H-(100)**: 2×1 reconstruction breaks 4-fold symmetry, producing a "
-        "very large σxx − σyy anisotropy (~66 kbar) alongside the largest residual "
-        "compressive mean stress (~38 kbar).  This surface is the strongest "
-        "candidate for both D-shift and E-splitting effects.  NV centers within "
-        "a few nm of this surface could show measurable ODMR line shifts and "
-        "splitting.",
-        "",
-        "- **H-(110)**: Moderate mean stress (~8 kbar) with significant σxx ≠ σyy "
-        "anisotropy (~27 kbar) because the [110] and [001] directions are "
-        "inequivalent.  Intermediate NV risk; worth including in explicit NV "
-        "supercell calculations.",
-        "",
-        "- **H-(111)**: Near-zero mean stress (~2 kbar) and enforced in-plane "
-        "isotropy (C₃ᵥ site symmetry forces σxx = σyy).  The lowest NV "
-        "perturbation risk of the three orientations studied.",
-        "",
-    ]
+    lines += _summary_ordering_lines(records)
 
     # ── 6. Limitations ──────────────────────────────────────────────────────
     lines += [

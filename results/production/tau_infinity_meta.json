@@ -1,0 +1,18 @@
+{
+  "a0_angstrom": 3.572997470394866,
+  "a0_source": "project_dft_fit",
+  "reference_config": "config/reference_pbe_sssp.json",
+  "omega_c_angstrom3": 5.701749579469307,
+  "ecutwfc": 90.0,
+  "ecutrho": 720.0,
+  "runs_dir": "results/production",
+  "run_prefix": "thick_a0corr_stress",
+  "epistemic_level": "L2",
+  "thickness_definition": "t = N_C * a0^3/8 / A (bulk-equivalent, atom-counted)",
+  "sign_convention": "sigma>0 compressed (CLAUDE.md sec 2); tau = sigma*Lz/2 inherits that, so tau>0 is COMPRESSIVE surface stress: the surface pushes outward and a released cell expands. This equals MINUS the continuum surface stress f (for which positive is tensile); consumers wanting f must negate. Verified against free 2D vc-relax (cell_dofree='2Dxy') at 16L on all three surfaces: positive tau expanded the cell in 6 of 6 axes ((100)[110] +0.139%, (110)[1-10] +0.145%, (110)[001] +0.429%, (111) +0.052% both axes), negative tau contracted it ((100)[1-10] -0.664%).",
+  "layers_used_note": "8L 10L 12L 16L",
+  "layers_excluded_note": "6L",
+  "sigma_res_tol_kbar": 0.3,
+  "sigma_res_consistent": true,
+  "warnings": []
+}

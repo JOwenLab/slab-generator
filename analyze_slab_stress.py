@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """
-analyze_slab_stress.py - Estimate vacuum-corrected slab surface stress.
+analyze_slab_stress.py - Compute vacuum-corrected slab surface stress.
 
-Reads results/slabs/slab_summary.csv from parse_slab.py and converts the
-cell-averaged QE stress tensor into approximate 2D surface stress:
+Reads results/slabs/slab_summary.csv from parse_slab.py. QE reports stress
+averaged over the full periodic supercell (slab + vacuum), so its magnitude
+depends on the arbitrary vacuum thickness; this script converts it into the
+vacuum-independent 2D surface stress:
 
-    tau_ij = sigma_ij * Lz / 2
+    tau_ij = sigma_ij * Lz * 0.005   (Lz = cell height, Angstrom; result N/m)
 
-where Lz is the slab supercell height and 2 accounts for the two slab faces.
-This is a first diagnostic for surface-induced lattice pressure/strain. A
-proper surface-stress fit should later use explicit in-plane strain series.
+(0.005 = 0.1 GPa/kbar * 0.1 N/m per GPa*Angstrom / 2 surfaces). tau_ij is the
+physically intrinsic surface quantity and the primary output of this script;
+sigma_ij is retained as a diagnostic, vacuum-dependent cross-check. See
+fit_slab_strain.py for the strain-series fit of both.
 """
 
 import argparse
@@ -29,6 +32,8 @@ FIELDS = [
     "termination",
     "formula",
     "pseudo_consistency",
+    "cutoff_notes",
+    "relax_converged",
     "complete",
     "needs_attention",
     "cell_area_angstrom2",
@@ -86,8 +91,12 @@ def analyze_row(row):
     if sxx is not None and syy is not None:
         mean = 0.5 * (sxx + syy)
         anis = sxx - syy
-        # QE stress sign is preserved. For pressure-like language, use -mean.
-        eff_p = -mean
+        # In-plane analogue of the QE pressure. CLAUDE.md section 2 (verified
+        # against bulk diamond at -1% strain, which gives sigma = P = +162.86
+        # kbar) fixes P = +(1/3) tr(sigma), so a pressure is +mean(sigma), not
+        # -mean(sigma). This was negated until 2026-08, which made a field
+        # called "pressure" anti-correlated with pressure.
+        eff_p = mean
 
     # Convert kbar stress to vacuum-corrected 2D stress:
     # kbar * 0.1 GPa/kbar * Angstrom * 0.1 N/m/(GPa Angstrom) / 2 surfaces.
@@ -105,6 +114,16 @@ def analyze_row(row):
         if anis is not None:
             tau_anis = anis * factor
 
+    # Sign convention (CLAUDE.md section 2, corrected 2026-08): positive
+    # sigma means the cell is COMPRESSED, negative means it is in TENSION.
+    # With eff_p = +sigma_mean the field now agrees with its own name, so
+    # eff_p > 0 is compressive and pressure-like.
+    #
+    # Two sign errors were fixed here in sequence and they cancel in this
+    # output: the labels were swapped while eff_p was still -sigma_mean, then
+    # eff_p itself was corrected to +sigma_mean and the labels swapped back.
+    # The emitted stress_interpretation strings are therefore byte-identical
+    # across both changes; only the eff_p column moved.
     interpretation = "unknown"
     if eff_p is not None:
         if eff_p > 1.0:
@@ -114,11 +133,18 @@ def analyze_row(row):
         else:
             interpretation = "near_zero_inplane_mean_stress"
 
+    # relax_converged is a tri-state written by parse_slab.py: "True"/"False"
+    # for relax runs, "" (not applicable) for scf-only runs such as the
+    # stress_scf reruns.
+    relax_not_converged = str(row.get("relax_converged")).strip().lower() == "false"
+
     relevance = "use_for_clean_H_baseline"
-    if row.get("pseudo_consistency") != "ok":
-        relevance = "exclude_from_comparison_pseudo_mismatch"
-    elif not truthy(row.get("complete")):
+    if not truthy(row.get("complete")):
         relevance = "exclude_incomplete"
+    elif row.get("pseudo_consistency") != "ok":
+        relevance = "exclude_from_comparison_pseudo_mismatch"
+    elif relax_not_converged:
+        relevance = "exclude_relaxation_not_converged"
 
     return {
         "folder_name": row.get("folder_name"),
@@ -126,6 +152,8 @@ def analyze_row(row):
         "termination": row.get("termination"),
         "formula": row.get("formula"),
         "pseudo_consistency": row.get("pseudo_consistency"),
+        "cutoff_notes": row.get("cutoff_notes"),
+        "relax_converged": row.get("relax_converged"),
         "complete": row.get("complete"),
         "needs_attention": row.get("needs_attention"),
         "cell_area_angstrom2": row.get("cell_area_angstrom2"),
@@ -184,8 +212,9 @@ def write_md(rows, path):
     lines.append("## Interpretation")
     lines.append("")
     lines.append("- `tau_mean_n_per_m` is the approximate per-surface in-plane stress after correcting for vacuum dilution.")
-    lines.append("- `effective_inplane_pressure_kbar = -mean(sigma_xx, sigma_yy)` uses QE stress sign convention to provide pressure-like language.")
-    lines.append("- Large positive effective pressure indicates a compressive pressure-like surface contribution; large negative values indicate tensile stress-like behavior.")
+    lines.append("- Sign convention (CLAUDE.md section 2): positive `sigma` means the cell is COMPRESSED and wants to expand; negative `sigma` means it is in TENSION. Anchored on bulk diamond at -1% strain, which gives sigma = P = +162.86 kbar.")
+    lines.append("- `effective_inplane_pressure_kbar = +mean(sigma_xx, sigma_yy)`, the in-plane analogue of the QE pressure `P = +(1/3)tr(sigma)`. It shares `sigma`'s sign, so it is positive under compression.")
+    lines.append("- Accordingly, large positive effective pressure indicates a compressive, pressure-like in-plane surface contribution; large negative values indicate a tensile one.")
     lines.append("- These values are best used to rank orientations and functionalizations before doing explicit strain fits.")
     lines.append("")
     lines.append("## Excluded or Flagged Rows")

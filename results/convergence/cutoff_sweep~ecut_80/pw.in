@@ -1,0 +1,51 @@
+! Stress-only SCF generated from results/slabs/C111_1x1_H_6L_sym
+! Uses final relaxed coordinates; no ionic relaxation.
+&CONTROL
+  tprnfor       = .true.
+  tstress       = .true.
+  calculation   = 'scf'
+  prefix        = 'slab'
+  pseudo_dir    = './'
+  outdir        = './tmp'
+  forc_conv_thr = 1.0d-4
+  etot_conv_thr = 1.0d-5
+/
+
+&SYSTEM
+  ibrav    = 0
+  nat      = 8
+  ntyp     = 2
+  ecutwfc  = 80.0
+  ecutrho  = 640.0
+  occupations = 'smearing'
+  smearing    = 'mv'
+  degauss     = 0.01
+/
+
+&ELECTRONS
+  conv_thr    = 1.0d-8
+  mixing_beta = 0.3
+/
+
+ATOMIC_SPECIES
+  C   12.011  C.pbe-n-kjpaw_psl.1.0.0.UPF
+  H    1.008  H_ONCV_PBE-1.0.oncvpsp.upf
+
+CELL_PARAMETERS angstrom
+      2.52694578     0.00000000     0.00000000
+      1.26347289     2.18839924     0.00000000
+      0.00000000     0.00000000    14.82229584
+
+ATOMIC_POSITIONS (angstrom)
+C                1.2634728900        0.7294664100        9.7100325273
+C                2.5269457800        1.4589328300        9.2221884686
+C                2.5269457800        1.4589328300        7.6680156058
+C               -0.0000000000        0.0000000000        7.1542802242
+C                0.0000000000        0.0000000000        5.6001073714
+C                1.2634728900        0.7294664100        5.1122633127
+H                1.2634728900        0.7294664100       10.8189746200
+H                1.2634728900        0.7294664100        4.0033212200
+
+K_POINTS automatic
+  9 9 1  0 0 0
+! 0 atoms frozen (bottom region) via if_pos flags

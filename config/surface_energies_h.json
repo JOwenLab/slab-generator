@@ -1,0 +1,122 @@
+{
+  "name": "surface_energies_h",
+  "description": "H-terminated diamond surface energies as a function of the hydrogen chemical potential, derived from the production slab relaxations.",
+  "units": "J/m^2",
+  "termination": "H",
+  "generated_by": "surface_energy.py",
+  "source_type": "project_dft_fit",
+  "sign_convention": "gamma > 0 costs energy to create the surface. gamma < 0 means the H-terminated surface is more stable than the reference state, so the surface-area term lowers the total energy; a Wulff construction does not exist in that regime.",
+  "chemical_potentials": {
+    "mu_H_rich_ry": -1.16645748325,
+    "mu_H_rich_definition": "E(H2)/2 from a relaxed H2 molecule",
+    "E_H2_ry": -2.3329149665,
+    "H2_run": "results/reference_90_720/H2",
+    "mu_C_ry": -18.434076958115373,
+    "mu_C_definition": "Birch-Murnaghan E0 per carbon at the fitted equilibrium lattice constant",
+    "mu_C_source": "results/reference_90_720/bulk_fit_summary.json",
+    "pseudo_C": "C.pbe-n-kjpaw_psl.1.0.0.UPF",
+    "pseudo_H": "H_ONCV_PBE-1.0.oncvpsp.upf",
+    "ecutwfc": 90.0,
+    "ecutrho": 720.0
+  },
+  "mu_h_dependence": {
+    "formula": "gamma(mu_H) = gamma_h_rich + (N_H / 2A) * delta_mu, with delta_mu = mu_H(H-rich) - mu_H >= 0 in eV",
+    "note": "The ordering of the surface energies, and therefore the equilibrium particle shape, depends on mu_H. A single H-rich number is not the whole result.",
+    "h_poor_limit": "NOT COMPUTED. Bounding how hydrogen-poor the system can get needs a CH4 or graphite+H2 reference, which does not exist in this repository. Any scanned range is a convention.",
+    "wulff_available_from_delta_mu_ev": 0.3367915593811016
+  },
+  "surface_energies": {
+    "100": {
+      "value": 0.050123,
+      "value_at": "mu_H = E(H2)/2 (H-rich limit)",
+      "scatter_j_m2": 0.024119,
+      "dgamma_dmu_j_m2_per_ev": 2.510008,
+      "coverage_n_h_over_2a_per_a2": 0.156662,
+      "zero_crossing_delta_mu_ev": -0.019969,
+      "epistemic_level": "L1",
+      "n_H": 4,
+      "cell_area_angstrom2": 12.766308,
+      "layers_used": [
+        8,
+        10,
+        12,
+        16
+      ],
+      "layers_excluded": [
+        6
+      ],
+      "mu_c_fit_ry": -18.434129349237857,
+      "mu_c_drift_mry": -0.05239112248389688,
+      "fit_rms_ry": 0.001151684458342724,
+      "facet": "(100)-2x1-H, monohydride dimer",
+      "notes": [
+        "fitted mu_C drifts -0.0524 mRy from the bulk reference (tolerance 0.020 mRy)",
+        "per-slab gamma scatters by 0.0241 J/m^2 across the fitted ladder"
+      ]
+    },
+    "110": {
+      "value": -0.826526,
+      "value_at": "mu_H = E(H2)/2 (H-rich limit)",
+      "scatter_j_m2": 0.00033,
+      "dgamma_dmu_j_m2_per_ev": 3.549687,
+      "coverage_n_h_over_2a_per_a2": 0.221554,
+      "zero_crossing_delta_mu_ev": 0.232845,
+      "epistemic_level": "L2",
+      "n_H": 4,
+      "cell_area_angstrom2": 9.027143,
+      "layers_used": [
+        8,
+        10,
+        12,
+        16
+      ],
+      "layers_excluded": [
+        6
+      ],
+      "mu_c_fit_ry": -18.43407524988786,
+      "mu_c_drift_mry": 0.0017082275114432832,
+      "fit_rms_ry": 1.9499857197741415e-07,
+      "facet": "(110)-1x1-H",
+      "notes": []
+    },
+    "111": {
+      "value": -0.976125,
+      "value_at": "mu_H = E(H2)/2 (H-rich limit)",
+      "scatter_j_m2": 0.000562,
+      "dgamma_dmu_j_m2_per_ev": 2.898307,
+      "coverage_n_h_over_2a_per_a2": 0.180898,
+      "zero_crossing_delta_mu_ev": 0.336792,
+      "epistemic_level": "L2",
+      "n_H": 2,
+      "cell_area_angstrom2": 5.527973,
+      "layers_used": [
+        8,
+        10,
+        12,
+        16
+      ],
+      "layers_excluded": [
+        6
+      ],
+      "mu_c_fit_ry": -18.434073773955696,
+      "mu_c_drift_mry": 0.0031841596772608227,
+      "fit_rms_ry": 5.411959826532128e-06,
+      "facet": "(111)-1x1-H, single-dangling-bond face",
+      "notes": []
+    }
+  },
+  "method": {
+    "formula": "gamma = [E_slab - N_C*mu_C - N_H*mu_H] / (2A)",
+    "mu_c_from": "slope of a linear fit of E_slab against N_C across the thickness ladder (Boettger construction), cross-checked against the bulk reference",
+    "excluded_layers": [
+      6
+    ],
+    "excluded_reason": "6L is outside the asymptotic regime on all three surfaces; excluded consistently with fit_tau_infinity.py",
+    "runs_dir": "results/production",
+    "run_prefix": "thick_a0corr"
+  },
+  "warnings": [
+    "C100: fitted mu_C = -18.434129349 Ry drifts -0.0524 mRy from the bulk reference -18.434076958 Ry. The slab interior is not perfectly bulk-like, or the ladder is not in the asymptotic regime. gamma for this surface is downgraded to L1; per-slab scatter is 0.0241 J/m^2.",
+    "dehydrogenation bound MISSING: no bare-facet ladder found. gamma_H(mu_H) is therefore unbounded above in this model and every hydrogen-poor statement is an extrapolation with no stop. Generate the campaign with make_bare_slabs.py and rerun with --bare-runs-dir."
+  ]
+}
