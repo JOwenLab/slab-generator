@@ -65,12 +65,27 @@ within a fixed cell.
 
 **Stress.** QE reports kbar. 1 GPa = 10 kbar. Sign convention in this project:
 
-- `sigma < 0` (negative mean in-plane stress) = **compressive**, pressure-like
-- `sigma > 0` (positive mean in-plane stress) = **tensile-like**
-- QE pressure `P = -(1/3)tr(sigma)`, so positive `P` corresponds to a compressed cell
+- `sigma > 0` (positive mean in-plane stress) = the cell is **compressed**;
+  it wants to expand. Pressure-like.
+- `sigma < 0` (negative mean in-plane stress) = the cell is in **tension**;
+  it wants to contract.
+- QE pressure `P = +(1/3)tr(sigma)`, so positive `P` corresponds to a compressed cell
 
-Sanity anchor from the bulk reference: -1.0% strain (compression) gives
-P = +162.53 kbar. If a sign chain ever contradicts that, the chain is wrong.
+Sanity anchor from the bulk reference: -1.0% strain (unambiguously compression)
+gives sigma_xx = sigma_yy = sigma_zz = P = **+162.86 kbar**
+(`results/reference_90_720/bulk90~eps_-0.010/pw.out`, 90/720 Ry; the earlier
+80/640 Ry reference gives +162.53 kbar, same sign). If a sign chain ever
+contradicts that, the chain is wrong.
+
+Corollary used throughout the slab work: because `dsigma/deps < 0`, a surface
+with **positive** residual `sigma_mean` has a **positive** zero-stress strain —
+it would need in-plane *expansion* to reach zero stress. Positive residual
+stress and positive zero-stress strain always travel together; if a table shows
+them with opposite signs, something is wrong.
+
+**History:** this section previously stated both of these backwards
+(`sigma < 0` = compressive, `P = -(1/3)tr(sigma)`). Prose and comments written
+against the old text may still be inverted — see the audit note in section 6.
 
 **Surface stress.** The 2D diagnostic is
 
@@ -222,6 +237,21 @@ artifact as a result of record.
   one there.
 - `run_queue.py` has not reliably copied completed slab relaxations into
   `results/slabs/`. Verify the copy rather than assuming it.
+- **Stress-sign prose is not yet migrated to the corrected convention** (see
+  section 2). The numbers everywhere are fine — only the words are suspect.
+  Known un-migrated sites, all inverted relative to corrected section 2:
+  `parse_convergence.py` module docstring; `plot_convergence.py` module
+  docstring; `analyze_slab_stress.py` `interpretation` labels
+  (`compressive_inplane_pressure_like` / `tensile_inplane_stress_like`, keyed
+  off `effective_inplane_pressure = -sigma_mean`) and the two "Interpretation"
+  bullets it writes into `slab_stress_summary.md`; and every
+  `stress_interpretation` string already written into `results/slabs/` and
+  `results/archive_asymmetric_6L/`. `nv_strain_model.py`'s
+  `make_interpretation` is sign-*blind* rather than inverted: it tests
+  `abs(stress)` and hardcodes the word "compression", so it labels negative
+  (tensile) residual stress as compression. Changing any of these rewrites
+  strings in committed `results/` artifacts, so treat it as a deliberate
+  migration, not a drive-by fix.
 
 ---
 

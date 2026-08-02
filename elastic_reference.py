@@ -137,7 +137,24 @@ def load_elastic_reference(config_path,
 
 
 def update_bulk_reference(config_path, a0_angstrom: float, bulk_modulus_gpa: float,
-                           source_summary_json: str, extra_fields: dict | None = None) -> None:
+                           source_summary_json: str, extra_fields: dict | None = None,
+                           supersede_reason: str | None = None,
+                           stale_keys: "list[str] | None" = None) -> None:
+    """
+    Write fitted a0 / bulk modulus into a reference config.
+
+    If `supersede_reason` is given, the pre-existing bulk_reference values are
+    snapshotted into `bulk_reference["superseded"]` before being overwritten,
+    together with that reason. Any `superseded` block already present is
+    carried down into the snapshot, so the chain of prior values is preserved
+    rather than being flattened — history is kept per CLAUDE.md §7.
+
+    `stale_keys` are removed from the live block before the new fields are
+    applied. Without this, outputs of a *previous* fit method that the current
+    method does not produce (e.g. `a0_pressure_fit_angstrom` from a linear
+    P(ε) fit) would survive next to the new numbers and read as though they
+    were current. They remain available in the superseded snapshot.
+    """
     path = Path(config_path)
     if not path.exists():
         raise ElasticReferenceError(f"reference config not found: {path}")
@@ -147,12 +164,23 @@ def update_bulk_reference(config_path, a0_angstrom: float, bulk_modulus_gpa: flo
         raise ElasticReferenceError(f"malformed JSON in {path}: {exc}") from exc
 
     br = cfg.setdefault("bulk_reference", {})
+
+    snapshot = None
+    if supersede_reason is not None:
+        snapshot = {k: v for k, v in br.items()}
+        snapshot["reason_superseded"] = supersede_reason
+
+    for key in (stale_keys or []):
+        br.pop(key, None)
+
     br["a0_fit_angstrom"] = a0_angstrom
     br["bulk_modulus_gpa"] = bulk_modulus_gpa
     br["source_type"] = "project_dft_fit"
     br["source_summary_json"] = source_summary_json
     if extra_fields:
         br.update(extra_fields)
+    if snapshot is not None:
+        br["superseded"] = snapshot
 
     tmp_path = path.with_name(path.name + ".tmp")
     tmp_path.write_text(json.dumps(cfg, indent=2) + "\n")
