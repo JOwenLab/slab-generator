@@ -1,0 +1,61 @@
+! Stress-only SCF generated from /burg/rent/users/als2416/vcrelax/C111_16L
+! Uses final relaxed coordinates; no ionic relaxation.
+&CONTROL
+  tprnfor       = .true.
+  tstress       = .true.
+  calculation   = 'scf'
+  prefix        = 'slab'
+  pseudo_dir    = './'
+  outdir = '/tmp/qe'
+  forc_conv_thr = 1.0d-4
+  etot_conv_thr = 1.0d-5
+/
+
+&SYSTEM
+  ibrav    = 0
+  nat      = 18
+  ntyp     = 2
+  ecutwfc  = 90.0
+  ecutrho  = 720.0
+  occupations = 'smearing'
+  smearing    = 'mv'
+  degauss     = 0.01
+/
+
+&ELECTRONS
+  conv_thr    = 1.0d-9
+  mixing_beta = 0.3
+/
+
+ATOMIC_SPECIES
+  C   12.011  C.pbe-n-kjpaw_psl.1.0.0.UPF
+  H    1.008  H_ONCV_PBE-1.0.oncvpsp.upf
+
+CELL_PARAMETERS angstrom
+   2.527591951   0.000000000   0.000000000
+   1.263795976   2.188958837   0.000000000
+   0.000000000   0.000000000  25.134569970
+
+ATOMIC_POSITIONS (crystal)
+C                0.3333333300        0.3333333300        0.7966328196
+C                0.6666666700        0.6666666700        0.7772208967
+C                0.6666666700        0.6666666700        0.7153953317
+C               -0.0000000000        0.0000000000        0.6949218956
+C                0.0000000000       -0.0000000000        0.6333547163
+C                0.3333333300        0.3333333300        0.6128477192
+C                0.3333333300        0.3333333300        0.5512933921
+C                0.6666666700        0.6666666700        0.5307788842
+C                0.6666666700        0.6666666700        0.4692211158
+C               -0.0000000000        0.0000000000        0.4487066079
+C                0.0000000000       -0.0000000000        0.3871522808
+C                0.3333333300        0.3333333300        0.3666452837
+C                0.3333333300        0.3333333300        0.3050781044
+C                0.6666666700        0.6666666700        0.2846046683
+C                0.6666666700        0.6666666700        0.2227791033
+C               -0.0000000000        0.0000000000        0.2033671804
+H                0.3333333300        0.3333333300        0.8407584153
+H               -0.0000000000        0.0000000000        0.1592415847
+
+K_POINTS automatic
+  10 10 1  0 0 0
+! 0 atoms frozen (bottom region) via if_pos flags
