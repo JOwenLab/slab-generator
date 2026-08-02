@@ -732,7 +732,12 @@ def write_markdown(results, warnings, path):
         "",
         "This report summarises the equation-of-state analysis of the PBE/SSSP",
         "bulk diamond reference series computed with Quantum ESPRESSO `pw.x`.",
-        "A five-point hydrostatic strain series (ε = −0.010 … +0.010) was fitted",
+        # Derived, not asserted. This sentence used to hardcode "A five-point
+        # ... (ε = −0.010 … +0.010)", which would have silently misdescribed the
+        # data the moment anyone resampled the series.
+        f"A {results['n_points']}-point hydrostatic strain series "
+        f"(ε = {results['epsilon_min_sampled']:+.4f} … "
+        f"{results['epsilon_max_sampled']:+.4f}) was fitted",
         "to extract the equilibrium lattice constant and bulk modulus.  These",
         "values define the zero-strain baseline for downstream slab",
         "surface-energy, surface-stress, Raman-shift, and NV-centre analyses.",

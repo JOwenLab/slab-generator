@@ -2,9 +2,27 @@
 """
 make_slab_stress_scf.py - Generate stress-only SCF jobs from relaxed slabs.
 
-Reads relaxed slab results from results/slabs/<name>/pw.in and pw.out, extracts
+Reads relaxed slab results from <results-root>/<name>/pw.in and pw.out, extracts
 the final coordinates from pw.out, and writes new QE single-point inputs with
 calculation='scf', tstress=.true., and tprnfor=.true.
+
+The cell comes from pw.out when pw.out contains one
+--------------------------------------------------
+QE writes a "Begin final coordinates" block at the end of a relaxation. For a
+fixed-cell `relax` that block holds ATOMIC_POSITIONS only; for a `vc-relax` it
+also holds CELL_PARAMETERS, because the cell itself moved.
+
+This script used to take CELL_PARAMETERS from the *source pw.in* in every case.
+For a fixed-cell relax that is correct, since the cell never changed. For a
+vc-relax it is silently wrong: it pairs the relaxed positions with the
+*unrelaxed* cell, producing a structure that was never a stationary point of
+anything, and a stress tensor that is meaningless. Nothing crashes and the
+numbers look ordinary — the failure mode CLAUDE.md section 0 is about.
+
+Now the final cell is taken from pw.out whenever pw.out provides one (invariant
+7: pw.out is ground truth for what the code actually did), the pw.in cell is
+used only when it does not, and a vc-relax source whose pw.out has no final cell
+is a hard error rather than a silent fallback.
 """
 
 import argparse
@@ -58,6 +76,68 @@ def extract_final_positions(out_text):
     return matches[-1].group(0).rstrip() + "\n"
 
 
+def extract_calculation(in_text):
+    """The `calculation` string declared in the source &CONTROL, lowercased."""
+    m = re.search(r"calculation\s*=\s*'([^']+)'", in_text, re.IGNORECASE)
+    return m.group(1).strip().lower() if m else None
+
+
+# Calculations in which the cell is a degree of freedom, so the input cell is
+# not the cell the run finished at.
+VARIABLE_CELL = {"vc-relax", "vc-md"}
+
+
+def extract_final_cell(out_text):
+    """
+    CELL_PARAMETERS from pw.out's "Begin final coordinates" block, or None.
+
+    Only variable-cell runs write one. Returning None for a fixed-cell relax is
+    the correct, expected result, not a parse failure.
+    """
+    m = re.search(
+        r"Begin final coordinates(.*?)End final coordinates",
+        out_text,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if not m:
+        return None
+    block = m.group(1)
+    cm = re.search(
+        r"(CELL_PARAMETERS\s*\([^)]+\)\n"
+        r"(?:\s*" + _NUM + r"\s+" + _NUM + r"\s+" + _NUM + r"\s*\n){3})",
+        block,
+        re.IGNORECASE,
+    )
+    return cm.group(1).rstrip() + "\n" if cm else None
+
+
+def resolve_cell(in_text, out_text, src_dir):
+    """
+    Return (cell_block, provenance_string).
+
+    pw.out wins whenever it supplies a cell. A variable-cell source whose pw.out
+    supplies none is an error: falling back to the input cell there would pair
+    relaxed coordinates with an unrelaxed cell.
+    """
+    calculation = extract_calculation(in_text)
+    final_cell = extract_final_cell(out_text)
+
+    if final_cell is not None:
+        return final_cell, f"pw.out final coordinates (source calculation={calculation})"
+
+    if calculation in VARIABLE_CELL:
+        raise ValueError(
+            f"{src_dir}: source calculation is {calculation!r}, so the cell "
+            "relaxed, but pw.out has no CELL_PARAMETERS in its final "
+            "coordinates block. Refusing to fall back to the pw.in cell, which "
+            "would pair relaxed positions with an unrelaxed cell. Check whether "
+            "the run finished."
+        )
+
+    cell = extract_block(in_text, r"CELL_PARAMETERS", [r"\nATOMIC_POSITIONS", r"\nK_POINTS"])
+    return cell, f"pw.in (fixed-cell source calculation={calculation})"
+
+
 def patch_control(control):
     control = re.sub(r"calculation\s*=\s*'[^']+'", "calculation   = 'scf'", control, flags=re.IGNORECASE)
     if re.search(r"\btstress\s*=", control, re.IGNORECASE):
@@ -79,7 +159,7 @@ def make_one(src_dir, dest_dir):
     system = extract_block(in_text, r"&SYSTEM", [r"\n&ELECTRONS"])
     electrons = extract_block(in_text, r"&ELECTRONS", [r"\n&IONS", r"\n&CELL", r"\nATOMIC_SPECIES"])
     species = extract_block(in_text, r"ATOMIC_SPECIES", [r"\nCELL_PARAMETERS", r"\nATOMIC_POSITIONS", r"\nK_POINTS"])
-    cell = extract_block(in_text, r"CELL_PARAMETERS", [r"\nATOMIC_POSITIONS", r"\nK_POINTS"])
+    cell, cell_source = resolve_cell(in_text, out_text, src_dir)
     kpoints = extract_block(in_text, r"K_POINTS", [r"\n[A-Z_]+"])
 
     if not all([control, system, electrons, species, cell, kpoints]):
@@ -93,6 +173,7 @@ def make_one(src_dir, dest_dir):
     pw_in.write_text(
         f"! Stress-only SCF generated from {src_dir}\n"
         f"! Uses final relaxed coordinates; no ionic relaxation.\n"
+        f"! Cell taken from: {cell_source}\n"
         f"{control}\n"
         f"{system}\n"
         f"{electrons}\n"
@@ -110,11 +191,32 @@ def make_one(src_dir, dest_dir):
     return pw_in
 
 
-DEFAULT_ONLY = [
-    "C100_2x1_H_6L_sym",
-    "C110_1x1_H_6L_SSSP_sym",
-    "C111_1x1_H_6L_sym",
-]
+RELAXATION_CALCULATIONS = {"relax", "vc-relax", "md", "vc-md"}
+
+
+def discover_relaxations(results_root):
+    """
+    Every directory under results_root that holds a completed relaxation.
+
+    Selection is by what the input declares, not by folder name: a directory
+    qualifies if it has both pw.in and pw.out and its pw.in declares a
+    calculation in which the ions move. That skips the `*_stress_scf` outputs
+    this script itself produces, without pattern-matching their names.
+
+    Replaces a hardcoded list of three run names from the original 6L campaign,
+    which made the script unusable without --only on any later campaign.
+    """
+    if not results_root.is_dir():
+        raise FileNotFoundError(f"results root not found: {results_root}")
+
+    found = []
+    for d in sorted(p for p in results_root.iterdir() if p.is_dir()):
+        pw_in, pw_out = d / "pw.in", d / "pw.out"
+        if not (pw_in.exists() and pw_out.exists()):
+            continue
+        if extract_calculation(pw_in.read_text()) in RELAXATION_CALCULATIONS:
+            found.append(d.name)
+    return found
 
 
 def resolve_names(results_root, patterns):
@@ -157,8 +259,16 @@ def main():
     results_root = Path(args.results_root)
     runs_root = Path(args.runs_root)
 
-    patterns = args.only if args.only is not None else DEFAULT_ONLY
-    names = resolve_names(results_root, patterns)
+    if args.only is not None:
+        names = resolve_names(results_root, args.only)
+    else:
+        names = discover_relaxations(results_root)
+        if not names:
+            raise SystemExit(
+                f"No completed relaxations found under {results_root} "
+                "(need pw.in + pw.out with a relaxing calculation)."
+            )
+        print(f"discovered {len(names)} relaxation(s) under {results_root}")
 
     for name in names:
         src = results_root / name

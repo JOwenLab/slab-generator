@@ -17,3 +17,9 @@ will be written to results/slabs/.
 
 The NV predictions computed from these runs are archived alongside
 (nv_predictions_from_asymmetric/) for the same reason.
+
+4. The `stress_interpretation` strings in the summaries here predate the
+   2026-08 sign correction (CLAUDE.md section 2) and are therefore inverted:
+   read `compressive_inplane_pressure_like` as tensile and vice versa. They
+   are deliberately NOT regenerated, because rewriting an archive of invalid
+   data would muddy its provenance. The numbers were never affected.

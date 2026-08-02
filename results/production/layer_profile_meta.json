@@ -1,0 +1,17 @@
+{
+  "a0_angstrom": 3.572997470394866,
+  "a0_source": "project_dft_fit",
+  "reference_config": "config/reference_pbe_sssp.json",
+  "bulk_cc_bond_angstrom": 1.5471532885097459,
+  "runs": {
+    "C100": "thick_a0corr~C100_16L",
+    "C110": "thick_a0corr~C110_16L",
+    "C111": "final~C111_24L"
+  },
+  "gap_tol": 0.25,
+  "eps_floor": 0.0001,
+  "penetration_threshold": 0.001,
+  "profile_epistemic_level": "L2",
+  "decay_epistemic_level": "L1",
+  "note": "out-of-plane profile only; a periodic slab has no depth-dependent in-plane strain to extract"
+}

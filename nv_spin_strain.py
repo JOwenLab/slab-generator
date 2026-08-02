@@ -100,14 +100,60 @@ PARAM_SETS["dft"] = UDVARHELYI_DFT
 PARAM_SETS["barson"] = BARSON_SCALED
 
 
+DEFAULT_REFERENCE_CONFIG = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "config", "reference_pbe_sssp.json")
+
+_ELASTIC_CACHE: dict = {}
+
+
+def config_elastic_constants(config_path: str = DEFAULT_REFERENCE_CONFIG):
+    """
+    C11/C12/C44 as recorded in the reference config, cached per path.
+
+    This is the ONLY place the cubic stiffness enters this module. It used to
+    be duplicated as literals in `ElasticConstants`'s field defaults, which is
+    the same failure shape as the a0 bug: the config is the thing that gets
+    updated (the planned DFT elastic-tensor campaign will replace these
+    literature values), and a stale second copy would keep feeding the old
+    numbers into every NV shift via particle_strain, silently and without
+    changing any code.
+
+    A missing or malformed config is a hard error rather than a fallback to
+    literals, because a silent fallback is precisely the failure being removed.
+    """
+    key = os.path.abspath(config_path)
+    if key not in _ELASTIC_CACHE:
+        ref = elastic_reference.load_elastic_reference(config_path)
+        _ELASTIC_CACHE[key] = (ref.tensor.C11, ref.tensor.C12, ref.tensor.C44)
+    return _ELASTIC_CACHE[key]
+
+
+def _default_C11() -> float:
+    return config_elastic_constants()[0]
+
+
+def _default_C12() -> float:
+    return config_elastic_constants()[1]
+
+
+def _default_C44() -> float:
+    return config_elastic_constants()[2]
+
+
 @dataclass(frozen=True)
 class ElasticConstants:
-    """Cubic stiffness of diamond, GPa. Defaults are the legacy literature
-    values also recorded in config/reference_pbe_sssp.json; the CLI sources
-    actual values through elastic_reference.py rather than these defaults."""
-    C11: float = 1076.0
-    C12: float = 125.0
-    C44: float = 576.0
+    """
+    Cubic stiffness of diamond, GPa.
+
+    Defaults are READ FROM config/reference_pbe_sssp.json, which is the single
+    source of truth (`elastic_tensor.source_type: literature` — these are not
+    project-derived DFT values; see that file's notes). They are not written
+    here. tests/test_elastic_constants_single_source.py fails if a copy ever
+    reappears in this file.
+    """
+    C11: float = field(default_factory=_default_C11)
+    C12: float = field(default_factory=_default_C12)
+    C44: float = field(default_factory=_default_C44)
 
     def tensor(self) -> np.ndarray:
         """Full C_ijkl in the cubic frame."""

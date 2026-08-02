@@ -4,7 +4,7 @@
 
 This report summarises the equation-of-state analysis of the PBE/SSSP
 bulk diamond reference series computed with Quantum ESPRESSO `pw.x`.
-A five-point hydrostatic strain series (ε = −0.010 … +0.010) was fitted
+A 5-point hydrostatic strain series (ε = -0.0100 … +0.0100) was fitted
 to extract the equilibrium lattice constant and bulk modulus.  These
 values define the zero-strain baseline for downstream slab
 surface-energy, surface-stress, Raman-shift, and NV-centre analyses.

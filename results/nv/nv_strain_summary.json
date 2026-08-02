@@ -1,12 +1,12 @@
 [
   {
-    "approximate_pressure_proxy_kbar": 21.366999999999997,
+    "approximate_pressure_proxy_kbar": -21.366999999999997,
     "axial_D_shift_risk_score": 0.5603,
     "estimated_E_GHz": 0.06608,
     "estimated_delta_D_GHz": 0.06461,
     "fit_status": "good",
     "inplane_anisotropy_kbar": 56.82,
-    "interpretation": "large residual mean compression (-21.4 kbar); very large \u03c3xx\u2212\u03c3yy anisotropy (56.8 kbar) \u2192 strong E risk; overall NV perturbation risk: high",
+    "interpretation": "large residual mean tensile stress (-21.4 kbar); very large \u03c3xx\u2212\u03c3yy anisotropy (56.8 kbar) \u2192 strong E risk; overall NV perturbation risk: high",
     "orientation": "(100)",
     "overall_NV_perturbation_score": 0.7802,
     "preferred_biaxial_strain": -0.004969994417566057,
@@ -28,13 +28,13 @@
     "y_zero_stress_epsilon": -0.01045519542421354
   },
   {
-    "approximate_pressure_proxy_kbar": -38.134,
+    "approximate_pressure_proxy_kbar": 38.134,
     "axial_D_shift_risk_score": 1.0,
     "estimated_E_GHz": 0.02335,
     "estimated_delta_D_GHz": 0.08224,
     "fit_status": "good",
     "inplane_anisotropy_kbar": -28.150000000000002,
-    "interpretation": "large residual mean compression (38.1 kbar); significant anisotropy (-28.2 kbar) \u2192 moderate E risk; overall NV perturbation risk: high",
+    "interpretation": "large residual mean compressive stress (38.1 kbar); significant anisotropy (-28.2 kbar) \u2192 moderate E risk; overall NV perturbation risk: high",
     "orientation": "(110)",
     "overall_NV_perturbation_score": 0.7477,
     "preferred_biaxial_strain": 0.006326144658261447,
@@ -56,7 +56,7 @@
     "y_zero_stress_epsilon": 0.013067263941307184
   },
   {
-    "approximate_pressure_proxy_kbar": -4.506000000000002,
+    "approximate_pressure_proxy_kbar": 4.506000000000002,
     "axial_D_shift_risk_score": 0.1182,
     "estimated_E_GHz": 0.0,
     "estimated_delta_D_GHz": 0.01098,

@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """
-parse_convergence.py - Summarise the cutoff and k-point convergence sweeps.
+parse_convergence.py - Summarise the cutoff, k-point, vacuum and thickness sweeps.
 
-Walks results/convergence/<run>/, where each <run> holds the pw.in and pw.out of
-a stress SCF (tstress, tprnfor, no ionic relaxation), and writes
-results/convergence/convergence_summary.csv.
+Walks one or more run directories, where each <run> holds the pw.in and pw.out of
+a stress SCF (tstress, tprnfor, no ionic relaxation), and writes a summary CSV.
+
+    results/convergence/      -> cutoff, k-point and vacuum sweeps
+    results/thickness_stress/ -> layer-thickness ladder (6L..16L per surface)
+
+Both are parsed by the same code path; the sweep a run belongs to is derived
+from its folder name (see `sweep_of`) and anything unrecognised is labelled
+"other" rather than guessed at.
 
 Ground-truth rules (CLAUDE.md sections 1 and 2):
 
@@ -25,13 +31,28 @@ sigma in kbar and Lz in Angstrom:
     sigma_mean = (sigma_xx + sigma_yy) / 2          [kbar]
     anisotropy = sigma_xx - sigma_yy                [kbar]
     tau_mean   = sigma_mean * Lz * 0.005            [N/m]
+    sigma_lz   = sigma_mean * Lz                    [kbar*Angstrom]
 
 The 0.005 is 0.1 GPa/kbar * 0.1 (N/m)/(GPa*Angstrom) / 2 surfaces; the factor of
-2 is because the slab has two surfaces. sigma < 0 is compressive, sigma > 0 is
-tensile-like, and QE pressure P = -(1/3)tr(sigma).
+2 is because the slab has two surfaces.
+
+SIGN CONVENTION (CLAUDE.md section 2, corrected 2026-08):
+
+    sigma > 0  ->  the cell is COMPRESSED; it wants to expand. Pressure-like.
+    sigma < 0  ->  the cell is in TENSION; it wants to contract.
+    QE pressure P = +(1/3) tr(sigma).
+
+Anchored on bulk diamond at -1% strain (unambiguously compression), which gives
+sigma_xx = sigma_yy = sigma_zz = P = +162.86 kbar. This docstring previously
+stated both of these backwards; the numbers were never affected, only the words.
 
 Anisotropy sign depends on how the in-plane cell axes were assigned, so the
 lattice vector lengths a1 and a2 are carried in the CSV alongside it.
+
+Geometry is read from the coordinates, never inferred from the folder name
+(invariant 1/3). The carbon slab thickness, layer count and vacuum gap are all
+computed from ATOMIC_POSITIONS and cross-checked against the name; a
+disagreement is reported, not silently accepted.
 """
 
 import argparse
@@ -56,6 +77,42 @@ SWEEP_PREFIXES = {
     "kpt": "kpoint",
     "vac": "vacuum",
 }
+
+# Thickness-ladder runs are named C<orientation>_<N>L_stress_scf and carry no
+# sweep prefix, so they are matched separately.
+THICKNESS_RE = re.compile(r"^C\d{3}_(\d+)L(?:_stress_scf)?$")
+
+# Two carbon z-coordinates within this distance count as the same atomic layer.
+#
+# The window is tight and the value is not arbitrary. Measured z-gaps in this
+# dataset:
+#
+#   (100)  0.076 A   buckling within a 2x1 dimer row  -> SAME layer
+#   (100)  0.816 A   adjacent layers                  -> distinct
+#   (110)  0.000 A   two atoms per layer, degenerate  -> SAME layer
+#   (110)  1.235 A   adjacent layers                  -> distinct
+#   (111)  0.488 A   the two halves of a (111) bilayer -> DISTINCT layers
+#   (111)  1.554 A   between bilayers                 -> distinct
+#
+# So the tolerance must exceed 0.076 and stay below 0.488. 0.25 A sits ~3x above
+# the (100) buckling and ~2x below the (111) bilayer split. A larger value (0.6)
+# silently merged each (111) bilayer and reported every C111 slab as half its
+# true layer count, which would have put the wrong thickness on the x-axis of
+# the thickness fit; the name-vs-geometry check below is what caught it.
+LAYER_TOL_ANGSTROM = 0.25
+
+
+def sweep_of(run_name):
+    """Sweep label for a run folder. Never guesses: unknown -> 'other'."""
+    if THICKNESS_RE.match(run_name):
+        return "thickness"
+    return SWEEP_PREFIXES.get(run_name.split("_")[0], "other")
+
+
+def declared_layer_count(run_name):
+    """Layer count asserted by the folder name, for cross-checking only."""
+    m = THICKNESS_RE.match(run_name)
+    return int(m.group(1)) if m else None
 
 FIELDS = [
     "run",
@@ -86,6 +143,15 @@ FIELDS = [
     "sigma_mean_kbar",
     "anisotropy_kbar",
     "tau_mean_n_per_m",
+    "sigma_lz_kbar_angstrom",
+    "n_C",
+    "n_H",
+    "slab_thickness_angstrom",
+    "atom_extent_angstrom",
+    "vacuum_angstrom",
+    "n_layers_geometry",
+    "n_layers_declared",
+    "layer_count_consistency",
     "scf_converged",
     "job_done",
     "pseudo_C",
@@ -137,6 +203,7 @@ def parse_pw_in(path):
         "k1": None, "k2": None, "k3": None,
         "a1_angstrom": None, "a2_angstrom": None, "lz_angstrom": None,
         "pseudo_in": {},
+        "z_by_species": {},
     }
     if not path.exists():
         return out
@@ -192,6 +259,81 @@ def parse_pw_in(path):
                 out["pseudo_in"][parts[0]] = parts[2]
             break
 
+    for i, line in enumerate(lines):
+        stripped = line.strip().upper()
+        if stripped.startswith("ATOMIC_POSITIONS"):
+            if "ANGSTROM" not in stripped:
+                # Every run in this campaign writes angstrom. Refuse to guess:
+                # a crystal/bohr block read as angstrom would give a plausible
+                # but wrong slab thickness.
+                raise ValueError(
+                    f"{path}: ATOMIC_POSITIONS unit in {line.strip()!r} is not "
+                    "angstrom; refusing to guess"
+                )
+            for row in lines[i + 1:]:
+                parts = row.split()
+                if len(parts) < 4 or row.strip().startswith("!"):
+                    break
+                try:
+                    z = float(parts[3])
+                except ValueError:
+                    break
+                out["z_by_species"].setdefault(parts[0], []).append(z)
+            break
+
+    return out
+
+
+def count_layers(zs, tol=LAYER_TOL_ANGSTROM):
+    """Number of distinct atomic layers among the given z coordinates."""
+    if not zs:
+        return None
+    layers = 1
+    ordered = sorted(zs)
+    for prev, cur in zip(ordered, ordered[1:]):
+        if cur - prev > tol:
+            layers += 1
+    return layers
+
+
+def slab_geometry(z_by_species, lz):
+    """
+    Carbon slab thickness, total atomic extent, vacuum gap and layer count,
+    all from coordinates.
+
+    `slab_thickness` is the carbon z-extent, max(z_C) - min(z_C). That is the
+    elastic body whose interior stress the thickness fit is about; the
+    terminating H sits outside it. The choice matters: a constant offset in the
+    thickness definition shifts the intercept of the sigma*Lz vs t fit, and so
+    shifts tau_inf. The slope (the residual interior stress) is unaffected by
+    it. Anything quoting tau_inf must state which convention produced it.
+
+    `vacuum` uses the full atomic extent including H, since it is the H atoms
+    on opposing faces that would interact across the periodic boundary.
+    """
+    out = {
+        "n_C": None, "n_H": None,
+        "slab_thickness_angstrom": None,
+        "atom_extent_angstrom": None,
+        "vacuum_angstrom": None,
+        "n_layers_geometry": None,
+    }
+    if not z_by_species:
+        return out
+
+    z_c = z_by_species.get("C", [])
+    z_h = z_by_species.get("H", [])
+    all_z = [z for zs in z_by_species.values() for z in zs]
+
+    out["n_C"] = len(z_c) or None
+    out["n_H"] = len(z_h) or None
+    if z_c:
+        out["slab_thickness_angstrom"] = max(z_c) - min(z_c)
+        out["n_layers_geometry"] = count_layers(z_c)
+    if all_z:
+        out["atom_extent_angstrom"] = max(all_z) - min(all_z)
+        if lz is not None:
+            out["vacuum_angstrom"] = lz - out["atom_extent_angstrom"]
     return out
 
 
@@ -277,10 +419,27 @@ def analyze_run(rundir, git_commit):
     pout = parse_pw_out(rundir / "pw.out")
 
     run = rundir.name
-    sweep = SWEEP_PREFIXES.get(run.split("_")[0], "other")
+    sweep = sweep_of(run)
 
     surface, from_source = surface_of(pin["source_slab"], run)
     notes = []
+
+    geom = slab_geometry(pin["z_by_species"], pin["lz_angstrom"])
+
+    # Invariant 3 again, for the layer count: the name says NL, the coordinates
+    # must agree. This is exactly the class of error that cost this project 45
+    # calculations, so it is checked rather than assumed.
+    n_declared = declared_layer_count(run)
+    n_geom = geom["n_layers_geometry"]
+    if n_declared is None:
+        layer_count_consistency = "not_applicable"
+    elif n_geom is None:
+        layer_count_consistency = "no_coordinates"
+    elif n_declared == n_geom:
+        layer_count_consistency = "ok"
+    else:
+        layer_count_consistency = f"name_says_{n_declared}L_geometry_says_{n_geom}L"
+        notes.append(layer_count_consistency)
 
     if surface is None:
         notes.append("surface_unidentified")
@@ -337,12 +496,13 @@ def analyze_run(rundir, git_commit):
     syy = pout["sigma_yy_kbar"]
     lz = pin["lz_angstrom"]
 
-    sigma_mean = anisotropy = tau_mean = None
+    sigma_mean = anisotropy = tau_mean = sigma_lz = None
     if sxx is not None and syy is not None:
         sigma_mean = 0.5 * (sxx + syy)
         anisotropy = sxx - syy
         if lz is not None:
             tau_mean = sigma_mean * lz * TAU_FACTOR
+            sigma_lz = sigma_mean * lz
 
     def kdens(k, a):
         return k * a if (k is not None and a is not None) else None
@@ -376,6 +536,15 @@ def analyze_run(rundir, git_commit):
         "sigma_mean_kbar": sigma_mean,
         "anisotropy_kbar": anisotropy,
         "tau_mean_n_per_m": tau_mean,
+        "sigma_lz_kbar_angstrom": sigma_lz,
+        "n_C": geom["n_C"],
+        "n_H": geom["n_H"],
+        "slab_thickness_angstrom": geom["slab_thickness_angstrom"],
+        "atom_extent_angstrom": geom["atom_extent_angstrom"],
+        "vacuum_angstrom": geom["vacuum_angstrom"],
+        "n_layers_geometry": n_geom,
+        "n_layers_declared": n_declared,
+        "layer_count_consistency": layer_count_consistency,
         "scf_converged": "yes" if pout["scf_converged"] else "no",
         "job_done": "yes" if pout["job_done"] else "no",
         "pseudo_C": pseudo_out.get("C", ""),
@@ -388,12 +557,14 @@ def analyze_run(rundir, git_commit):
 
 
 def sort_key(row):
-    sweep_order = {"cutoff": 0, "kpoint": 1, "vacuum": 2}.get(row["sweep"], 3)
+    sweep_order = {"cutoff": 0, "kpoint": 1, "vacuum": 2, "thickness": 3}.get(
+        row["sweep"], 4)
     return (
         sweep_order,
         row["surface"] or "zzz",
         row["ecutwfc_ry"] if row["sweep"] == "cutoff" and row["ecutwfc_ry"] is not None else 0.0,
         row["k1"] if row["k1"] is not None else 0,
+        row["n_layers_geometry"] or 0,
         row["run"],
     )
 
@@ -408,27 +579,35 @@ def write_csv(rows, path):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[1])
-    ap.add_argument("--indir", default="results/convergence")
+    ap.add_argument("--indir", nargs="+", default=["results/convergence"],
+                    help="one or more run directories to scan "
+                         "(e.g. results/convergence results/thickness_stress)")
     ap.add_argument("--out", default=None,
-                    help="output CSV (default <indir>/convergence_summary.csv)")
+                    help="output CSV (default <first indir>/convergence_summary.csv)")
     args = ap.parse_args()
 
-    indir = Path(args.indir)
-    outpath = Path(args.out) if args.out else indir / "convergence_summary.csv"
+    indirs = [Path(d) for d in args.indir]
+    outpath = Path(args.out) if args.out else indirs[0] / "convergence_summary.csv"
     repo = Path(__file__).resolve().parent
     git_commit = repo_git_commit(repo)
 
-    rundirs = sorted(d for d in indir.iterdir() if d.is_dir() and (d / "pw.out").exists())
-    if not rundirs:
-        raise SystemExit(f"No runs with a pw.out under {indir}")
+    rundirs = []
+    for indir in indirs:
+        if not indir.is_dir():
+            raise SystemExit(f"Not a directory: {indir}")
+        found = sorted(d for d in indir.iterdir()
+                       if d.is_dir() and (d / "pw.out").exists())
+        if not found:
+            raise SystemExit(f"No runs with a pw.out under {indir}")
+        rundirs.extend(found)
 
     rows = [analyze_run(d, git_commit) for d in rundirs]
     rows.sort(key=sort_key)
 
     write_csv(rows, outpath)
 
-    print(f"Parsed {len(rows)} convergence runs from {indir}")
-    for sweep in ("cutoff", "kpoint", "vacuum", "other"):
+    print(f"Parsed {len(rows)} runs from {', '.join(str(d) for d in indirs)}")
+    for sweep in ("cutoff", "kpoint", "vacuum", "thickness", "other"):
         group = [r for r in rows if r["sweep"] == sweep]
         if not group:
             continue
@@ -448,7 +627,8 @@ def main():
     flagged = [r for r in rows
                if r["notes"] and not set(r["notes"].split(";")) <= {"no_JOB_DONE", "scf_not_converged"}]
     flagged += [r for r in rows if r["pseudo_consistency"] != "ok"
-                or r["name_consistency"] != "ok" or r["cutoff_consistency"] != "ok"]
+                or r["name_consistency"] != "ok" or r["cutoff_consistency"] != "ok"
+                or r["layer_count_consistency"] not in ("ok", "not_applicable")]
     seen, unique = set(), []
     for r in flagged:
         if r["run"] not in seen:
@@ -459,8 +639,9 @@ def main():
         print(f"WARNING: {len(unique)} run(s) with provenance or naming flags:")
         for r in unique:
             detail = [r["notes"]] if r["notes"] else []
-            for key in ("pseudo_consistency", "name_consistency", "cutoff_consistency"):
-                if r[key] != "ok":
+            for key in ("pseudo_consistency", "name_consistency",
+                        "cutoff_consistency", "layer_count_consistency"):
+                if r[key] not in ("ok", "not_applicable"):
                     detail.append(f"{key}={r[key]}")
             print(f"  {r['run']}: {'; '.join(d for d in detail if d)}")
 

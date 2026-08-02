@@ -91,8 +91,12 @@ def analyze_row(row):
     if sxx is not None and syy is not None:
         mean = 0.5 * (sxx + syy)
         anis = sxx - syy
-        # QE stress sign is preserved. For pressure-like language, use -mean.
-        eff_p = -mean
+        # In-plane analogue of the QE pressure. CLAUDE.md section 2 (verified
+        # against bulk diamond at -1% strain, which gives sigma = P = +162.86
+        # kbar) fixes P = +(1/3) tr(sigma), so a pressure is +mean(sigma), not
+        # -mean(sigma). This was negated until 2026-08, which made a field
+        # called "pressure" anti-correlated with pressure.
+        eff_p = mean
 
     # Convert kbar stress to vacuum-corrected 2D stress:
     # kbar * 0.1 GPa/kbar * Angstrom * 0.1 N/m/(GPa Angstrom) / 2 surfaces.
@@ -110,6 +114,16 @@ def analyze_row(row):
         if anis is not None:
             tau_anis = anis * factor
 
+    # Sign convention (CLAUDE.md section 2, corrected 2026-08): positive
+    # sigma means the cell is COMPRESSED, negative means it is in TENSION.
+    # With eff_p = +sigma_mean the field now agrees with its own name, so
+    # eff_p > 0 is compressive and pressure-like.
+    #
+    # Two sign errors were fixed here in sequence and they cancel in this
+    # output: the labels were swapped while eff_p was still -sigma_mean, then
+    # eff_p itself was corrected to +sigma_mean and the labels swapped back.
+    # The emitted stress_interpretation strings are therefore byte-identical
+    # across both changes; only the eff_p column moved.
     interpretation = "unknown"
     if eff_p is not None:
         if eff_p > 1.0:
@@ -198,8 +212,9 @@ def write_md(rows, path):
     lines.append("## Interpretation")
     lines.append("")
     lines.append("- `tau_mean_n_per_m` is the approximate per-surface in-plane stress after correcting for vacuum dilution.")
-    lines.append("- `effective_inplane_pressure_kbar = -mean(sigma_xx, sigma_yy)` uses QE stress sign convention to provide pressure-like language.")
-    lines.append("- Large positive effective pressure indicates a compressive pressure-like surface contribution; large negative values indicate tensile stress-like behavior.")
+    lines.append("- Sign convention (CLAUDE.md section 2): positive `sigma` means the cell is COMPRESSED and wants to expand; negative `sigma` means it is in TENSION. Anchored on bulk diamond at -1% strain, which gives sigma = P = +162.86 kbar.")
+    lines.append("- `effective_inplane_pressure_kbar = +mean(sigma_xx, sigma_yy)`, the in-plane analogue of the QE pressure `P = +(1/3)tr(sigma)`. It shares `sigma`'s sign, so it is positive under compression.")
+    lines.append("- Accordingly, large positive effective pressure indicates a compressive, pressure-like in-plane surface contribution; large negative values indicate a tensile one.")
     lines.append("- These values are best used to rank orientations and functionalizations before doing explicit strain fits.")
     lines.append("")
     lines.append("## Excluded or Flagged Rows")
