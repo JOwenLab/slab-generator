@@ -82,24 +82,30 @@ SWEEP_PREFIXES = {
 # sweep prefix, so they are matched separately.
 THICKNESS_RE = re.compile(r"^C\d{3}_(\d+)L(?:_stress_scf)?$")
 
-# Two carbon z-coordinates within this distance count as the same atomic layer.
+# Measured carbon z-gaps in this dataset, which is what any layer-counting rule
+# has to survive:
 #
-# The window is tight and the value is not arbitrary. Measured z-gaps in this
-# dataset:
-#
-#   (100)  0.076 A   buckling within a 2x1 dimer row  -> SAME layer
-#   (100)  0.816 A   adjacent layers                  -> distinct
-#   (110)  0.000 A   two atoms per layer, degenerate  -> SAME layer
-#   (110)  1.235 A   adjacent layers                  -> distinct
+#   (100)  0.076 A   buckling within a 2x1 dimer row   -> SAME layer
+#   (100)  0.292 A   buckling within a 2x2 interior layer -> SAME layer
+#   (100)  0.816 A   adjacent layers                   -> distinct
+#   (110)  0.000 A   two atoms per layer, degenerate   -> SAME layer
+#   (110)  1.235 A   adjacent layers                   -> distinct
 #   (111)  0.488 A   the two halves of a (111) bilayer -> DISTINCT layers
-#   (111)  1.554 A   between bilayers                 -> distinct
+#   (111)  1.554 A   between bilayers                  -> distinct
 #
-# So the tolerance must exceed 0.076 and stay below 0.488. 0.25 A sits ~3x above
-# the (100) buckling and ~2x below the (111) bilayer split. A larger value (0.6)
-# silently merged each (111) bilayer and reported every C111 slab as half its
-# true layer count, which would have put the wrong thickness on the x-axis of
-# the thickness fit; the name-vs-geometry check below is what caught it.
-LAYER_TOL_ANGSTROM = 0.25
+# There is no single distance that separates those: (100)'s 0.292 A intra-layer
+# buckling is LARGER than (111)'s 0.488 A inter-layer split is small, and the
+# two windows overlap. Any fixed tolerance therefore has to be wrong for one of
+# them. The former 0.25 A value was wrong for (100): it split each buckled
+# interior layer in two and reported the 6-layer (100) slab as 8 layers. That
+# never reached tau_inf, because fit_tau_infinity.py keys exclusion on the
+# directory name, but it is a live trap for any exclusion logic written against
+# this field. count_layers below still clusters on a distance, but no longer
+# relies on it being right: it repairs the clustering with the requirement that
+# every layer hold the same number of atoms, which is what the old rule lacked.
+# 0.25 A is kept because it is below the smallest genuine interlayer gap in the
+# set ((111), 0.488 A); being too small is now the harmless direction.
+LAYER_CLUSTER_TOL_ANGSTROM = 0.25
 
 
 def sweep_of(run_name):
@@ -284,16 +290,60 @@ def parse_pw_in(path):
     return out
 
 
-def count_layers(zs, tol=LAYER_TOL_ANGSTROM):
-    """Number of distinct atomic layers among the given z coordinates."""
-    if not zs:
+def count_layers(zs, tol=LAYER_CLUSTER_TOL_ANGSTROM):
+    """
+    Number of atomic layers among these z coordinates.
+
+    Clustering on a distance alone is not enough, and cannot be made enough:
+    (100)'s 0.292 A intra-layer buckling is wider than (111)'s 0.488 A
+    inter-layer split is narrow, so no single threshold classifies both (see
+    the measured gaps above).
+
+    What disambiguates them is not a distance but a counting invariant. A slab
+    layer is a set of symmetry-equivalent sites, so every layer holds the same
+    number of atoms, and therefore the layer count must divide the atom count.
+    Clusters of unequal population are a proof that the clustering split
+    something that is one layer.
+
+    So: cluster on `tol`, then, while the cluster populations are unequal,
+    merge the adjacent pair separated by the smallest gap. On the (100) 2x2
+    slab that turns populations 4,4,2,2,2,2,4,4 into 4,4,4,4,4,4 by closing the
+    two 0.292 A buckling splits, and reports 6 layers rather than 8. Structures
+    the old rule already got right are untouched, because their clusters are
+    equal-population from the start.
+
+    Known limit, deliberately not papered over: the repair sees a split only
+    when it makes populations UNEQUAL. If a tolerance were small enough to
+    split every layer identically, the populations would stay equal and the
+    count would come back a whole multiple too large. That case is not
+    decidable from z alone -- uniform intra-layer buckling and a genuine
+    bilayer like (111)'s produce the same alternating gap sequence -- so it is
+    left to the name-vs-geometry check in `analyze_run`, which compares this
+    count against the layer count the folder name declares. `tol` must
+    therefore stay below the smallest genuine interlayer gap in the set
+    ((111), 0.488 A); 0.25 A is verified against every structure in results/.
+
+    Returns None for empty input.
+    """
+    n = len(zs)
+    if not n:
         return None
-    layers = 1
+
     ordered = sorted(zs)
+    clusters = [[ordered[0]]]
     for prev, cur in zip(ordered, ordered[1:]):
         if cur - prev > tol:
-            layers += 1
-    return layers
+            clusters.append([])
+        clusters[-1].append(cur)
+
+    while len({len(c) for c in clusters}) > 1:
+        # Smallest separation first: the narrowest split is the likeliest to be
+        # buckling within one layer rather than a boundary between two.
+        i = min(range(len(clusters) - 1),
+                key=lambda j: clusters[j + 1][0] - clusters[j][-1])
+        clusters[i:i + 2] = [clusters[i] + clusters[i + 1]]
+
+    return len(clusters)
 
 
 def slab_geometry(z_by_species, lz):

@@ -36,12 +36,19 @@ invisible in the output.
 SIGN CONVENTION (CLAUDE.md section 2, and tau_infinity.csv's own field):
 
     sigma > 0  ->  the cell is COMPRESSED.
-    tau   > 0  ->  a TENSILE surface stress: the surface tends to contract,
-                   which compresses the slab interior.
+    tau   > 0  ->  a COMPRESSIVE surface stress: the surface pushes outward,
+                   so a slab released from the bulk lattice constant EXPANDS.
 
-Those two agree rather than conflict -- a tensile surface pulling inward is
-what puts the interior into compression -- so no sign is flipped anywhere
-between sigma and tau.
+tau = sigma*Lz/2 simply inherits sigma's sign, so no sign is flipped anywhere
+between the two. Note this is MINUS the continuum surface stress f, for which
+positive conventionally means tensile; anything wanting f must negate.
+
+The direction is not a matter of convention here, it is measured. Free 2D
+vc-relax (cell_dofree='2Dxy') at 16L expands the cell on all 6 axes carrying
+positive tau and contracts the one carrying negative tau ((100)[1-10]), which
+is recorded in tau_infinity.csv's sign_convention field. Figure N4 plots the
+same relaxations independently and reproduces it: (100) has tau_xx > 0 with
+its a axis expanding and tau_yy < 0 with its b axis contracting.
 """
 
 from __future__ import annotations
@@ -374,7 +381,7 @@ def figure_tau_infinity(tau):
 
     The asymmetry between the three is the result. (100)'s pair straddles zero
     with opposite signs, so its two in-plane axes are in opposite states; (110)
-    sits entirely on the tensile side; (111) collapses to a single point because
+    sits entirely on the compressive side; (111) collapses to a single point because
     its three-fold symmetry forces tau_xx = tau_yy exactly.
     """
     surfaces = [s for s in figstyle.SURFACES if s in tau]
@@ -452,15 +459,19 @@ def figure_tau_infinity(tau):
         f"from tau_xx to tau_yy for one surface, with tau_mean as the open "
         f"diamond between them and error bars giving the rms of the "
         f"thickness extrapolation (at most {worst_err:.3f} N/m, smaller than "
-        f"the markers). Positive tau is a tensile surface stress: the surface "
-        f"tends to contract, compressing the slab interior. The facets span "
+        f"the markers). Positive tau is a compressive surface stress: the "
+        f"surface pushes outward, so a slab released from the bulk lattice "
+        f"constant expands along that axis, as Figure N4 shows directly. This "
+        f"is minus the continuum surface stress f, for which positive means "
+        f"tensile. The facets span "
         f"{lo:+.2f} to {hi:+.2f} N/m and, more importantly, differ in kind. "
     )
     if straddles:
         names = " and ".join(figstyle.SURFACE_STYLE[s]["label"] for s in straddles)
         caption += (
             f"{names} straddles zero, its two in-plane axes carrying surface "
-            f"stress of opposite sign -- tensile along one, compressive along "
+            f"stress of opposite sign -- compressive along one, tensile along "
+            f"the other, so released it expands on one axis and contracts on "
             f"the other -- which is the lattice-space origin of a transverse "
             f"splitting. ")
     if isotropic:
@@ -824,6 +835,10 @@ def figure_vcrelax(by_surface, exclude_layers=(6,)):
             f"{names} expands on both axes but by unequal amounts, so it "
             f"carries an anisotropy without a sign change. ")
     caption += (
+        f"These relaxations also fix the sign of tau independently of any "
+        f"convention: every axis carrying positive tau in Figure N1 expands "
+        f"here and the one carrying negative tau contracts, so positive tau is "
+        f"a compressive surface stress pushing the lattice outward. "
         f"Strains are relative to each slab's own starting cell at the "
         f"production a0; positive is expansion. Lines are least-squares fits "
         f"in 1/t and the only extrapolation in this figure."
@@ -939,9 +954,12 @@ def main():
         "the source files and run directories rather than transcribed.",
         "",
         "Sign convention (CLAUDE.md section 2): positive sigma means the cell",
-        "is COMPRESSED. Positive tau is a TENSILE surface stress -- the surface",
-        "tends to contract, which compresses the slab interior, so the two",
-        "conventions agree and no sign is flipped between them.",
+        "is COMPRESSED. tau = sigma*Lz/2 inherits that sign, so positive tau is",
+        "a COMPRESSIVE surface stress -- the surface pushes outward and a",
+        "released cell expands. This is minus the continuum surface stress f,",
+        "for which positive means tensile; consumers wanting f must negate.",
+        "The direction is measured, not assumed: free 2D vc-relax expands every",
+        "axis with positive tau and contracts the one with negative tau.",
         "",
         "All slabs are symmetric H/H terminated at 90/720 Ry, a0 from the",
         "production Birch-Murnaghan bulk fit.",

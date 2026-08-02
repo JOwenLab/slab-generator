@@ -289,12 +289,13 @@ def declared_layers(rows):
     The carbon layer count shared by a set of runs, from their source slab names
     and cross-checked against the carbon atom count.
 
-    `n_layers_geometry` from the summary CSV cannot be used for this. It counts
-    distinct carbon z-levels, and the (100) 2x1 interior buckling measures
-    0.292 A -- just above the 0.25 A layer tolerance in parse_convergence -- so
-    each of the two buckled interior layers is split in two and a 6-layer (100)
-    slab is reported as 8. Rather than trust either the name or that count, the
-    name's claim is verified: n_C must divide evenly by the declared layer count.
+    `n_layers_geometry` in the CSV now agrees with this (parse_convergence's
+    count_layers equalises layer populations, so the (100) 2x2 slab whose
+    0.292 A interior buckling used to split it into 8 reports 6). This stays a
+    separate derivation rather than reading that column because it checks a
+    different thing: that the NAME describes the geometry, CLAUDE.md invariant
+    3. Two independent routes to the layer count disagreeing is a signal worth
+    keeping, not duplication worth collapsing.
 
     Returns the layer count, or None if the runs disagree or the check fails.
     """
@@ -967,8 +968,9 @@ def figure_thickness(rows=None, exclude_layers=(6,)):
         f"The {excl_txt} point (struck through) lies outside the asymptotic "
         f"regime and is excluded from both fits but still plotted. Each surface "
         f"keeps its own y-scale because the three sit ~1000 kbar {AA_TXT} apart. "
-        f"Positive sigma means the cell is compressed; positive tau_inf is a "
-        f"tensile surface stress. Fits are read from fit_tau_infinity.py, not "
+        f"Positive sigma means the cell is compressed; tau inherits that sign, "
+        f"so positive tau_inf is a compressive surface stress (minus the "
+        f"continuum f). Fits are read from fit_tau_infinity.py, not "
         f"recomputed here."
     )
     return fig, caption, stats
