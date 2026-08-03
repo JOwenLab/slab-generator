@@ -378,9 +378,100 @@ def test_layer_counting_resolves_the_111_bilayer(tmp_path):
 
 
 @pytest.mark.skipif(not GOOD.exists(), reason="production fixture not present")
-def test_non_angstrom_units_are_refused_not_guessed(tmp_path):
-    d = _edit(_copy(tmp_path),
-              lambda t: t.replace("ATOMIC_POSITIONS angstrom",
-                                  "ATOMIC_POSITIONS crystal"))
-    with pytest.raises(preflight.PreflightError, match="not.*angstrom"):
-        preflight.load_structure(d)
+def test_crystal_coordinates_are_converted_not_refused(tmp_path):
+    """
+    A crystal block must give the SAME geometry as the angstrom one it was
+    converted from. The gate used to refuse crystal outright, which left all 15
+    vcrelax~* runs -- the evidence for the tau sign correction -- unchecked.
+    """
+    import numpy as np
+
+    ref = preflight.load_structure(GOOD)
+    inv = np.linalg.inv(ref.cell)
+
+    def to_crystal(text):
+        lines = text.splitlines()
+        i = next(j for j, l in enumerate(lines)
+                 if l.strip().upper().startswith("ATOMIC_POSITIONS"))
+        out = lines[:i] + ["ATOMIC_POSITIONS crystal"]
+        for k, (sp, r) in enumerate(zip(ref.species, ref.positions)):
+            f = r @ inv
+            out.append(f"  {sp}  {f[0]:.12f}  {f[1]:.12f}  {f[2]:.12f}")
+        out += lines[i + 1 + len(ref.species):]
+        return "\n".join(out) + "\n"
+
+    got = preflight.load_structure(_edit(_copy(tmp_path), to_crystal))
+    assert got.species == ref.species
+    assert np.allclose(got.positions, ref.positions, atol=1e-9)
+    # and the physics survives: coordination is what a wrong transpose breaks
+    for i in got.indices("C"):
+        assert got.coordination(i) == ref.coordination(i)
+
+
+def test_bohr_coordinates_are_converted(tmp_path):
+    import numpy as np
+    ref = preflight.load_structure(GOOD)
+
+    def to_bohr(text):
+        lines = text.splitlines()
+        i = next(j for j, l in enumerate(lines)
+                 if l.strip().upper().startswith("ATOMIC_POSITIONS"))
+        out = lines[:i] + ["ATOMIC_POSITIONS bohr"]
+        for sp, r in zip(ref.species, ref.positions):
+            b = r / preflight.BOHR_TO_ANGSTROM
+            out.append(f"  {sp}  {b[0]:.12f}  {b[1]:.12f}  {b[2]:.12f}")
+        out += lines[i + 1 + len(ref.species):]
+        return "\n".join(out) + "\n"
+
+    got = preflight.load_structure(_edit(_copy(tmp_path), to_bohr))
+    assert np.allclose(got.positions, ref.positions, atol=1e-9)
+
+
+def test_crystal_conversion_uses_rows_not_columns():
+    """
+    Regression guard on the transpose. r = f . A with A's rows the lattice
+    vectors. Using columns instead would not raise -- it would silently shear
+    any non-orthogonal cell -- so this checks against a hexagonal one, where
+    the two differ.
+    """
+    import numpy as np
+    cell = np.array([[2.52, 0.0, 0.0],
+                     [1.26, 2.18, 0.0],
+                     [0.0, 0.0, 20.0]])
+    frac = [[0.5, 0.5, 0.25]]
+    got = preflight._to_cartesian_angstrom(frac, "crystal", cell)
+    expected = np.array(frac) @ cell           # rows
+    wrong = np.array(frac) @ cell.T            # columns
+    assert np.allclose(got, expected)
+    assert not np.allclose(expected, wrong), "fixture no longer distinguishes them"
+
+
+@pytest.mark.skipif(not GOOD.exists(), reason="production fixture not present")
+def test_alat_and_unknown_units_are_still_refused(tmp_path):
+    """
+    Converting what can be converted must not turn into guessing at what
+    cannot. alat needs celldm(1), which these ibrav=0 inputs do not carry.
+    """
+    for unit in ("alat", "crystal_sg", "furlongs"):
+        d = _edit(_copy(tmp_path, name=f"u_{unit}"),
+                  lambda t, u=unit: t.replace("ATOMIC_POSITIONS angstrom",
+                                              f"ATOMIC_POSITIONS {u}"))
+        with pytest.raises(preflight.PreflightError, match="Refusing to guess"):
+            preflight.load_structure(d)
+
+
+@pytest.mark.skipif(not (PRODUCTION / "vcrelax~C111_16L" / "pw.in").exists(),
+                    reason="vc-relax fixture not present")
+@pytest.mark.parametrize("name", ["vcrelax~C100_16L", "vcrelax~C110_16L",
+                                  "vcrelax~C111_16L"])
+def test_the_vcrelax_evidence_is_inside_the_gate(name):
+    """
+    These are the runs that settled the tau sign convention. They must be
+    readable AND pass, not merely be skipped.
+    """
+    d = PRODUCTION / name
+    s = preflight.load_structure(d)
+    assert all(s.coordination(i) == 4 for i in s.indices("C")), \
+        "conversion produced a geometry with dangling bonds"
+    passed, results = preflight.check_directory(d, skip=NO_PSEUDO)
+    assert passed, "; ".join(v for vs in results.values() for v in vs)

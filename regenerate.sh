@@ -112,8 +112,8 @@ python3 nv_strain_model.py \
 
 # -------------------------------------------------------------- figures
 say "plot_convergence.py + plot_surface_stress.py -> results/figures/"
-python3 plot_convergence.py --outdir results/figures/convergence
-python3 plot_surface_stress.py --outdir results/figures/surface-stress
+python3 plot_convergence.py
+python3 plot_surface_stress.py
 
 # ----------------------------------------------------------------- gate
 say "preflight.py -> structural gate (advisory here, not a rebuild)"
@@ -127,12 +127,9 @@ python3 preflight.py results/production/thick_a0corr~* \
 
 echo
 if [ "$CHECK" = "1" ]; then
-    # Tracked files only. The figures land in results/figures/, which is not
-    # committed (deciding whether to commit them is still open), so untracked
-    # output here is expected and must not fail the check.
-    if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-        echo "REGENERATION CHANGED TRACKED FILES:"
-        git status --porcelain --untracked-files=no
+    if [ -n "$(git status --porcelain)" ]; then
+        echo "REGENERATION CHANGED FILES:"
+        git status --porcelain
         echo
         echo "Either an input changed, or a default moved. Both are worth"
         echo "understanding before committing."

@@ -68,7 +68,11 @@ import matplotlib.pyplot as plt  # noqa: E402
 AA = figstyle.angstrom()
 AA_TXT = "A"
 
-DEFAULT_OUTDIR = Path.home() / "Documents" / "diamonds" / "convergence"
+# In-repo, so the figures are committed alongside the data they came
+# from. This used to default to ~/Documents, which meant the figures
+# existed only on one machine: anyone cloning the repo, and anyone
+# reading it who will not run a regeneration script, saw none of them.
+DEFAULT_OUTDIR = Path(__file__).resolve().parent / "results" / "figures" / "convergence"
 CONVERGENCE_CSV = Path("results/convergence/convergence_summary.csv")
 BULK_CSV = Path("results/reference_90_720/reference_summary.csv")
 BULK_FIT_JSON = Path("results/reference_90_720/bulk_fit_summary.json")

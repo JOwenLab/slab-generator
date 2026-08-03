@@ -254,6 +254,65 @@ class Structure:
         return unmatched, worst
 
 
+BOHR_TO_ANGSTROM = 0.529177210903
+
+# QE position units this gate understands. `alat` is deliberately absent: it
+# scales by celldm(1)/A, which these inputs write as ibrav=0 with an explicit
+# CELL_PARAMETERS block and no celldm, so there is nothing to scale by. Refusing
+# is correct there; silently treating alat as angstrom would misplace every atom.
+_POSITION_UNITS = ("angstrom", "bohr", "crystal")
+
+
+def _position_unit(header_line, directory):
+    """
+    The unit declared on an ATOMIC_POSITIONS line.
+
+    QE writes it as `ATOMIC_POSITIONS crystal` or `ATOMIC_POSITIONS (crystal)`;
+    both spellings appear in this repository.
+    """
+    # Token match, not substring. `crystal_sg` CONTAINS `crystal` but is a
+    # different unit (space-group generating positions, expanded by symmetry),
+    # so a substring test silently accepts it as fractional and reads a partial
+    # asymmetric unit as though it were the whole cell.
+    tail = re.sub(r"^\s*ATOMIC_POSITIONS\s*", "", header_line.strip(),
+                  flags=re.IGNORECASE)
+    token = tail.strip().strip("(){}[]").strip().lower()
+    if token in _POSITION_UNITS:
+        return token
+    raise PreflightError(
+        f"{directory}: unit {token or '(none)'!r} in {header_line.strip()!r} is "
+        f"not one this gate can convert. Understood units are "
+        f"{', '.join(_POSITION_UNITS)}. Refusing to guess: a crystal block read "
+        "as angstrom, an alat block read as either, or a crystal_sg block read "
+        "as crystal all place atoms somewhere they are not.")
+
+
+def _to_cartesian_angstrom(positions, unit, cell):
+    """
+    Positions in Angstrom, converting from whichever unit QE declared.
+
+    This exists because the gate previously accepted angstrom only and raised on
+    everything else. That was safe but left a hole exactly where it mattered
+    least acceptably: all 15 `vcrelax~*` runs and `final~C111_30L_vc` write
+    `crystal`, and those are the runs that settled the tau sign convention --
+    the most scrutinised result in the project sat outside its own structural
+    gate.
+
+    crystal -> cartesian is r = f . A with A's ROWS the lattice vectors, which
+    is how CELL_PARAMETERS is stored here. Getting that transpose backwards
+    would not raise; it would silently shear every non-orthogonal cell, so the
+    (111) hexagonal cells are the ones to check a change against.
+    """
+    arr = np.asarray(positions, dtype=float)
+    if unit == "angstrom":
+        return arr
+    if unit == "bohr":
+        return arr * BOHR_TO_ANGSTROM
+    if unit == "crystal":
+        return arr @ np.asarray(cell, dtype=float)
+    raise PreflightError(f"unhandled position unit {unit!r}")
+
+
 def _parse_namelist(text, name):
     m = re.search(rf"&{name}(.*?)^\s*/", text, re.IGNORECASE | re.DOTALL | re.MULTILINE)
     if not m:
@@ -289,13 +348,10 @@ def load_structure(directory, filename="pw.in"):
     if cell is None:
         raise PreflightError(f"{directory}: no CELL_PARAMETERS block")
 
-    species, positions = [], []
+    species, positions, pos_unit = [], [], None
     for i, line in enumerate(lines):
         if line.strip().upper().startswith("ATOMIC_POSITIONS"):
-            if "angstrom" not in line.lower():
-                raise PreflightError(
-                    f"{directory}: ATOMIC_POSITIONS unit in {line.strip()!r} is "
-                    "not angstrom; refusing to guess")
+            pos_unit = _position_unit(line, directory)
             for row in lines[i + 1:]:
                 parts = row.split()
                 if len(parts) < 4 or row.strip().startswith("!"):
@@ -309,6 +365,8 @@ def load_structure(directory, filename="pw.in"):
             break
     if not species:
         raise PreflightError(f"{directory}: no ATOMIC_POSITIONS block")
+
+    positions = _to_cartesian_angstrom(positions, pos_unit, cell)
 
     pseudos = {}
     for i, line in enumerate(lines):

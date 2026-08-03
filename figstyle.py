@@ -77,6 +77,15 @@ GUIDE = "#4D4D4D"
 
 _USETEX = None
 
+# Suppress the PDF CreationDate. matplotlib stamps the wall clock into every
+# PDF it writes, so two runs over identical data produce different bytes and
+# the figures can never be checked for reproducibility -- `regenerate.sh
+# --check` would report all 18 PDFs as changed on every invocation, which
+# trains the reader to ignore it. PNGs do not carry the stamp and are already
+# byte-stable. Producer is pinned for the same reason: it embeds the matplotlib
+# version, which would otherwise churn the files on every upgrade.
+PDF_METADATA = {"CreationDate": None, "Producer": "slab-generator"}
+
 
 def _probe_usetex() -> bool:
     """
@@ -282,7 +291,8 @@ def save(fig, outdir, stem, caption=None, caption_width=None):
     outdir.mkdir(parents=True, exist_ok=True)
     written = []
 
-    for suffix, kwargs in ((".pdf", {}), (".png", {"dpi": 600})):
+    for suffix, kwargs in ((".pdf", {"metadata": PDF_METADATA}),
+                           (".png", {"dpi": 600})):
         path = outdir / f"{stem}{suffix}"
         fig.savefig(path, bbox_inches="tight", pad_inches=0.02, **kwargs)
         written.append(path)
@@ -300,7 +310,8 @@ def save(fig, outdir, stem, caption=None, caption_width=None):
             transform=fig.transFigure,
         )
         path = outdir / f"{stem}_annotated.pdf"
-        fig.savefig(path, bbox_inches="tight", pad_inches=0.02)
+        fig.savefig(path, bbox_inches="tight", pad_inches=0.02,
+                    metadata=PDF_METADATA)
         written.append(path)
         txt.remove()
 
