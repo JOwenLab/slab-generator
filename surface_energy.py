@@ -31,6 +31,61 @@ a real check, not a formality: a fitted slope that drifts from the bulk value
 means the slab interior is not bulk-like, or the ladder is not converged.
 `--mu-c-tol-mry` controls when that becomes a warning.
 
+A drifting slope does not merely add noise -- it BIASES gamma
+--------------------------------------------------------------
+The least-squares intercept is b = <E> - mu_C_fit * <N_C>, so a slope error
+`drift` moves the intercept by exactly -drift * <N_C> and moves gamma by
+
+    bias = -drift * <N_C>_used / (2A) * RY_PER_A2_TO_J_PER_M2      [J/m^2]
+
+This is an identity, not an estimate: it is exactly the gap between the
+Boettger gamma and the mean of the per-slab gammas taken with the independent
+bulk mu_C. It is the quantity that matters, because it is proportional to
+<N_C>: the same drift hurts a thick ladder more than a thin one, and hurts a
+small-area cell more than a large one. `--mu-c-tol-mry` alone cannot see that.
+
+`--mu-c-reject-j-m2` therefore REJECTS the fit -- raises, writes nothing --
+when the bias exceeds a budget in the units gamma is actually reported in.
+This is not a warning, because the consumers of gamma do not read warnings.
+The specific failure that motivated it: a bare (111) ladder whose 6L and 8L
+points sit outside the asymptotic regime fitted a slope tens of mRy from bulk
+and produced a large NEGATIVE gamma_bare, which `dehydrogenation_bound` then
+took as the binding ceiling on delta_mu. A ceiling built on a bad fit is worse
+than a missing one: the missing one is reported as missing, and the bad one
+silently binds every hydrogen-poor statement downstream of it.
+
+The bare facet's SPIN STATE is part of the ceiling
+--------------------------------------------------
+A bare face carries one unpaired electron per dangling bond; a spin-polarised
+bare (111) settles at 2.00 Bohr magnetons per symmetric cell, one per face.
+nspin = 2 is variational over nspin = 1, so a non-spin-polarised bare energy is
+an upper bound, gamma_bare is an upper bound, and the ceiling built from it is
+too PERMISSIVE. No fit diagnostic can see this: the ladder can be perfectly
+linear with zero mu_C drift and still be the energy of the wrong electronic
+state. `check_bare_spin_states` therefore reads the spin state from pw.out
+(not pw.in), refuses a facet that mixes polarised and non-polarised rungs, and
+warns loudly on a facet where no polarised run exists anywhere. See the block
+above `dehydrogenation_bound`.
+
+E_s is measured, not guessed. Given same-thickness nspin=1/nspin=2 pairs
+(`--bare-spin-runs-dir`), `measure_spin_stabilisation` returns the exchange
+stabilisation per dangling bond, and the correction to the ceiling is exactly
+E_s on every unreconstructed facet -- area, coverage and thickness all cancel.
+Both the corrected and uncorrected ceilings are reported. The correction is
+withheld where the dangling bonds are quenched or partially quenched, which the
+total magnetization of the polarised run reveals.
+
+Exclusions are per surface, not global
+--------------------------------------
+Which thicknesses are outside the asymptotic regime is a property of the
+SURFACE, not of the campaign. The H-terminated ladders need 6L dropped; a bare
+ladder, with two interacting dangling-bond faces instead of two passivated
+ones, converges more slowly and can need 6L and 8L dropped. `--exclude-layers`
+sets the default and `--exclude-layers-for C111=6,8` overrides it per surface
+(`--bare-exclude-layers` / `--bare-exclude-layers-for` for the bare ladder,
+which is keyed by the same surface tags). Every fit reports the thicknesses it
+used, the thicknesses it dropped, and why.
+
 Why mu_H is a variable and not a number
 ---------------------------------------
 The H-rich limit is mu_H = E(H2)/2, the most hydrogen-rich condition under
@@ -109,6 +164,32 @@ DEFAULT_PREFIX = "thick_a0corr"
 # Warn if the ladder's fitted mu_C drifts from the bulk reference by more than
 # this. (110) and (111) sit at ~0.003 mRy; (100) at ~0.05 mRy.
 DEFAULT_MU_C_TOL_MRY = 0.02
+
+# REJECT the fit if the drift biases gamma by more than this many J/m^2.
+#
+# Why 0.10 J/m^2, and why in J/m^2 rather than mRy:
+#
+#  * gamma is reported in J/m^2, so the budget belongs in J/m^2. A mRy
+#    threshold is not comparable across surfaces -- the same drift biases a
+#    16L, 5.5 Angstrom^2 (111) ladder about four times harder than an 8L,
+#    12.8 Angstrom^2 (100) one, because the bias scales as <N_C>/(2A).
+#  * 0.10 J/m^2 is roughly 4x the worst honest per-slab scatter in the
+#    production set ((100), 0.024 J/m^2) and 3x the 0.03 J/m^2 that the module
+#    docstring already says is the floor on quoting (100). A bias below the
+#    scatter is indistinguishable from the noise already declared; a bias
+#    several times above it is a different number, not a noisier one.
+#  * In the units that actually consume gamma: the dehydrogenation ceiling is
+#    (gamma_bare - gamma_H) / (N_H/2A), with slopes of 2.5-3.5 (J/m^2)/eV, so
+#    0.10 J/m^2 moves a ceiling by at most 0.04 eV. The margin that ceiling has
+#    to resolve -- against the delta_mu = 1.295 eV interior-pressure sign
+#    change -- is a few tenths of an eV. 0.04 eV is an order of magnitude
+#    below it; a budget ten times looser would not be.
+#
+# The production H ladders land at 0.010 J/m^2 ((100)) and below 0.001 J/m^2
+# ((110), (111)). The bare (111) failure this guard exists for lands near
+# 8 J/m^2. The separation is ~3 orders of magnitude; the threshold is not
+# balanced on a knife edge.
+DEFAULT_MU_C_REJECT_J_M2 = 0.10
 
 RUN_RE = re.compile(r"^(?P<prefix>.+)~(?P<surface>C\d{3}[a-z]*)_(?P<layers>\d+)L$")
 
@@ -207,6 +288,16 @@ class SlabEnergy:
     pseudo_H: str
     ecutwfc: float
     ecutrho: float
+    nspin_declared: int = 1          # from pw.in (QE defaults to 1 if absent)
+    nspin_effective: int = None      # from pw.out; ground truth for what ran
+    total_magnetization_bohr: float = None
+
+    @property
+    def spin_polarised(self) -> bool:
+        """True only when pw.out shows the run really was spin-polarised."""
+        if self.nspin_effective is not None:
+            return self.nspin_effective == 2
+        return self.nspin_declared == 2
 
 
 def load_slab_energies(runs_dir, prefix: str) -> dict:
@@ -245,7 +336,10 @@ def load_slab_energies(runs_dir, prefix: str) -> dict:
             n_C=n_C, n_H=n_H, area_angstrom2=area,
             energy_ry=float(pout["energy_ry"]),
             pseudo_C=pseudo.get("C", ""), pseudo_H=pseudo.get("H", ""),
-            ecutwfc=float(pin["ecutwfc"]), ecutrho=float(pin["ecutrho"])))
+            ecutwfc=float(pin["ecutwfc"]), ecutrho=float(pin["ecutrho"]),
+            nspin_declared=int(pin.get("nspin") or 1),
+            nspin_effective=pout.get("nspin_effective"),
+            total_magnetization_bohr=pout.get("total_magnetization_bohr")))
     if not by_surface:
         raise SurfaceEnergyError(
             f"no '{prefix}~<surface>_<N>L' relaxations under {runs_dir}")
@@ -277,6 +371,58 @@ def check_reference_consistency(points: list, ref: Reference) -> None:
                 f"cannot be combined")
 
 
+# ------------------------------------------------------- per-surface exclusion
+def parse_layer_exclusions(specs) -> dict:
+    """['C111=6,8', 'C100=6'] -> {'C111': [6, 8], 'C100': [6]}.
+
+    Which thicknesses lie outside the asymptotic regime is a property of the
+    surface. A bare facet has two interacting dangling-bond faces where an
+    H-terminated one has two passivated faces, so it converges more slowly and
+    needs more of the thin end dropped. A single global rule cannot express
+    that without either keeping points it should drop on one surface or
+    throwing away good points on another.
+    """
+    out = {}
+    for spec in specs or []:
+        if spec.count("=") != 1:
+            raise SurfaceEnergyError(
+                f"layer exclusion {spec!r} is not of the form SURFACE=N[,N...] "
+                f"(for example C111=6,8)")
+        surface, rhs = (s.strip() for s in spec.split("="))
+        if not surface:
+            raise SurfaceEnergyError(f"layer exclusion {spec!r} names no surface")
+        if surface in out:
+            raise SurfaceEnergyError(
+                f"surface {surface!r} is given a layer exclusion twice; the "
+                f"second would silently win")
+        layers = []
+        for tok in rhs.split(","):
+            tok = tok.strip().rstrip("Ll")
+            if not tok:
+                continue
+            try:
+                layers.append(int(tok))
+            except ValueError:
+                raise SurfaceEnergyError(
+                    f"layer exclusion {spec!r}: {tok!r} is not a layer count")
+        out[surface] = sorted(set(layers))
+    return out
+
+
+def resolve_exclusions(surface: str, default_layers, per_surface: dict):
+    """(layers_to_exclude, human-readable reason) for one surface."""
+    per_surface = per_surface or {}
+    if surface in per_surface:
+        layers = list(per_surface[surface])
+        why = (f"explicit per-surface exclusion for {surface} "
+               f"({', '.join(f'{n}L' for n in layers) or 'none'})")
+        return layers, why
+    layers = list(default_layers or [])
+    why = (f"campaign default ({', '.join(f'{n}L' for n in layers)})"
+           if layers else "no exclusions")
+    return layers, why
+
+
 # ---------------------------------------------------------------- the fit
 @dataclass
 class GammaFit:
@@ -295,12 +441,29 @@ class GammaFit:
     coverage_per_a2: float          # N_H / (2A), the slope in Angstrom^-2
     per_slab_gamma_j_m2: dict       # layers -> gamma using the bulk mu_C
     gamma_scatter_j_m2: float
+    mean_n_c_used: float = 0.0
+    exclusion_reason: str = ""
     epistemic_level: str = "L2"
+    rejected: bool = False
+    reject_reason: str = ""
     notes: list = field(default_factory=list)
 
     @property
     def mu_c_drift_mry(self) -> float:
         return 1000.0 * (self.mu_c_fit_ry - self.mu_c_bulk_ry)
+
+    @property
+    def gamma_bias_from_mu_c_drift_j_m2(self) -> float:
+        """How far the slope drift moves gamma, in the units gamma is reported.
+
+        Exact, not an estimate. The least-squares intercept is
+        b = <E> - mu_C_fit*<N_C>, so re-fitting with the slope pinned at the
+        bulk mu_C would move it by +drift*<N_C>, and gamma by that over 2A.
+        Equivalently: this is gamma_boettger minus the mean of the per-slab
+        gammas over the fitted ladder. Signed, so it says which way.
+        """
+        return (-(self.mu_c_fit_ry - self.mu_c_bulk_ry) * self.mean_n_c_used
+                / (2.0 * self.area_angstrom2)) * RY_PER_A2_TO_J_PER_M2
 
     def gamma_at(self, delta_mu_ev: float) -> float:
         """gamma in J/m^2 at mu_H = mu_H(H-rich) - delta_mu_ev."""
@@ -314,14 +477,22 @@ class GammaFit:
 
 
 def fit_surface_energy(surface: str, points: list, ref: Reference,
-                       exclude_layers) -> GammaFit:
+                       exclude_layers, exclusion_reason: str = "") -> GammaFit:
     exclude = set(exclude_layers)
     used = [p for p in points if p.layers not in exclude]
     dropped = [p for p in points if p.layers in exclude]
+    absent = sorted(exclude - {p.layers for p in points})
+    if absent:
+        raise SurfaceEnergyError(
+            f"{surface}: asked to exclude "
+            f"{', '.join(f'{n}L' for n in absent)}, which the ladder does not "
+            f"contain (it has {', '.join(f'{p.layers}L' for p in points)}). A "
+            f"misdirected exclusion silently leaves the bad point in the fit")
     if len(used) < 3:
         raise SurfaceEnergyError(
-            f"{surface}: {len(used)} points left after exclusion; too few for a "
-            f"two-parameter fit with a meaningful residual")
+            f"{surface}: {len(used)} points left after excluding "
+            f"{', '.join(f'{p.layers}L' for p in dropped) or 'nothing'}; too "
+            f"few for a two-parameter fit with a meaningful residual")
     areas = {round(p.area_angstrom2, 6) for p in used}
     if len(areas) != 1:
         raise SurfaceEnergyError(
@@ -368,11 +539,74 @@ def fit_surface_energy(surface: str, points: list, ref: Reference,
         fit_rms_ry=float(np.sqrt(np.mean(resid ** 2))),
         gamma_h_rich_j_m2=gamma, slope_j_m2_per_ev=slope,
         coverage_per_a2=coverage, per_slab_gamma_j_m2=per_slab,
-        gamma_scatter_j_m2=scatter)
+        gamma_scatter_j_m2=scatter, mean_n_c_used=float(np.mean(N)),
+        exclusion_reason=exclusion_reason)
 
 
-def grade_fits(fits: list, mu_c_tol_mry: float) -> list:
-    """Attach an epistemic level and warnings based on the fit's own diagnostics."""
+def _exclusion_hint(f: GammaFit, flag: str) -> str:
+    """The concrete next command, given the per-slab gammas already computed.
+
+    Points whose per-slab gamma sits far from the ladder's own median are the
+    ones dragging the slope; naming them is more useful than telling the user
+    to go and look.
+    """
+    used = {n: g for n, g in f.per_slab_gamma_j_m2.items() if n in f.layers_used}
+    if len(used) < 4:
+        return (f"the ladder has {len(used)} usable points; excluding any leaves "
+                f"too few to fit. Extend it before trying to salvage it.")
+    med = float(np.median(list(used.values())))
+    outliers = sorted(n for n, g in used.items()
+                      if abs(g - med) > max(0.05, 3 * f.gamma_scatter_j_m2 / 4))
+    keep = [n for n in sorted(used) if n not in outliers]
+    if not outliers or len(keep) < 3:
+        return ("no subset of the ladder is obviously to blame; the whole "
+                "ladder is likely outside the asymptotic regime.")
+    drop = sorted(set(f.layers_excluded) | set(outliers))
+    return (f"per-slab gamma singles out "
+            f"{', '.join(f'{n}L' for n in outliers)} "
+            f"({', '.join(f'{n}L {used[n]:+.3f}' for n in sorted(used))} J/m^2, "
+            f"median {med:+.3f}). If those are the unconverged ones, refit with "
+            f"`{flag} {f.surface}={','.join(str(n) for n in drop)}` and say so "
+            f"in the report.")
+
+
+def grade_fits(fits: list, mu_c_tol_mry: float,
+               mu_c_reject_j_m2: float = DEFAULT_MU_C_REJECT_J_M2,
+               exclusion_flag: str = "--exclude-layers-for") -> list:
+    """Attach an epistemic level and warnings based on the fit's own diagnostics.
+
+    Raises rather than warning once the slope drift biases gamma by more than
+    `mu_c_reject_j_m2`. Nothing downstream reads warnings, and a gamma biased
+    by several J/m^2 is not a noisy number -- it is a different number. See
+    DEFAULT_MU_C_REJECT_J_M2 for why the budget is stated in J/m^2.
+    """
+    rejected = []
+    for f in fits:
+        bias = f.gamma_bias_from_mu_c_drift_j_m2
+        if abs(bias) > mu_c_reject_j_m2:
+            f.rejected = True
+            f.epistemic_level = "REJECTED"
+            f.reject_reason = (
+                f"{f.surface}: fitted mu_C = {f.mu_c_fit_ry:.9f} Ry drifts "
+                f"{f.mu_c_drift_mry:+.4f} mRy from the bulk reference "
+                f"{f.mu_c_bulk_ry:.9f} Ry. Over the fitted ladder "
+                f"({', '.join(f'{n}L' for n in f.layers_used)}, <N_C> = "
+                f"{f.mean_n_c_used:.1f}, A = {f.area_angstrom2:.4f} "
+                f"Angstrom^2) that biases gamma by {bias:+.3f} J/m^2, past the "
+                f"{mu_c_reject_j_m2:.3f} J/m^2 budget. Excluded so far: "
+                f"{', '.join(f'{n}L' for n in f.layers_excluded) or 'nothing'} "
+                f"({f.exclusion_reason or 'unspecified'}). "
+                f"gamma = {f.gamma_h_rich_j_m2:+.4f} J/m^2 from this fit is "
+                f"NOT reported. {_exclusion_hint(f, exclusion_flag)}")
+            rejected.append(f)
+    if rejected:
+        raise SurfaceEnergyError(
+            "the fitted carbon chemical potential is too far from bulk for "
+            + ("this ladder" if len(rejected) == 1 else
+               f"{len(rejected)} ladders")
+            + " to give a usable surface energy:\n\n"
+            + "\n\n".join(f"  * {f.reject_reason}" for f in rejected))
+
     warnings = []
     for f in fits:
         if abs(f.mu_c_drift_mry) > mu_c_tol_mry:
@@ -386,7 +620,9 @@ def grade_fits(fits: list, mu_c_tol_mry: float) -> list:
                 f"{f.mu_c_bulk_ry:.9f} Ry. The slab interior is not perfectly "
                 f"bulk-like, or the ladder is not in the asymptotic regime. "
                 f"gamma for this surface is downgraded to L1; per-slab scatter "
-                f"is {f.gamma_scatter_j_m2:.4f} J/m^2.")
+                f"is {f.gamma_scatter_j_m2:.4f} J/m^2 and the drift biases "
+                f"gamma by {f.gamma_bias_from_mu_c_drift_j_m2:+.4f} J/m^2 "
+                f"(budget {mu_c_reject_j_m2:.3f}).")
         if f.gamma_scatter_j_m2 > 0.01:
             f.notes.append(
                 f"per-slab gamma scatters by {f.gamma_scatter_j_m2:.4f} J/m^2 "
@@ -670,7 +906,339 @@ def temperature_uncertainty_k(delta_mu_ev: float, p_pa: float,
 # H-terminated surface survives further than it does. `make_bare_slabs.py`
 # generates both and this function takes the minimum.
 # ===========================================================================
+#
+# THE SPIN STATE OF THE BARE FACET IS PART OF THE CEILING
+#
+# A bare (111) face carries one unpaired electron per dangling bond. A
+# spin-polarised run settles at a total magnetization of 2.00 Bohr magnetons
+# per symmetric cell -- exactly one per face -- and holds it. A
+# non-spin-polarised run cannot represent that state at all: it forces the two
+# spin channels to be identical and pays an energy penalty for it, so it
+# returns a total energy ABOVE the true ground state.
+#
+# The DIRECTION of the error is fixed, and it is the unsafe one. nspin = 2 is
+# variational over nspin = 1 -- the closed-shell solution is available to the
+# spin-polarised calculation and is simply not the minimum -- so
+#
+#     E_bare(non-polarised)  >=  E_bare(polarised)
+#
+# always, at the same geometry and smearing. E_slab enters gamma with a plus
+# sign, so a non-spin-polarised bare ladder gives a gamma_bare that is too
+# HIGH, hence a delta_mu ceiling that is too HIGH: too PERMISSIVE. It claims
+# the H-terminated surface survives to hydrogen-poorer conditions than it
+# does. That is the same direction of error `make_bare_slabs.py` already warns
+# about for the (111) reconstruction, and the one direction this bound must
+# not fail in.
+#
+# The error also does not average out and is invisible to every fit
+# diagnostic: the ladder can be perfectly linear, the mu_C drift zero, the
+# per-slab scatter 0.0001 J/m^2, and the number is still the energy of the
+# wrong electronic state. Same class of failure as the mu_C artifact -- a
+# ceiling that silently binds with every internal check passing.
+#
+# So the spin state is checked against pw.out, not assumed, and it is checked
+# ACROSS the campaign: once a spin-polarised result exists for any thickness of
+# a facet, a non-spin-polarised energy for that facet is known-wrong and is
+# refused rather than warned about. Where no spin-polarised run exists anywhere
+# for that facet, the ceiling is still computed -- refusing outright would
+# leave no bound at all, which is worse -- but it is labelled and warned about
+# loudly, and the warning names the facet so it can be queued.
+#
+# (100) is expected to quench its dangling bonds by dimerisation and so to be
+# genuinely closed-shell, but "expected" is not "tested"; it gets the same
+# treatment as the others until a spin-polarised run says otherwise.
+#
 BARE_SURFACE_KEY = re.compile(r"^(C\d{3})([a-z]*)$")
+
+# A dangling bond holds one unpaired electron; a symmetric slab has two faces.
+# Used only to say whether an observed magnetization looks like the expected
+# state or like something else that needs a human.
+EXPECTED_MAG_PER_SYMMETRIC_CELL = 2.0
+
+
+def spin_audit(bare_by_surface: dict) -> dict:
+    """Per facet: which thicknesses ran spin-polarised, and what that implies.
+
+    Keyed by BASE facet (C111, not C111pandey): a reconstruction variant is the
+    same dangling-bond chemistry, so a spin-polarised result on any variant is
+    evidence about the facet.
+    """
+    audit = {}
+    for surface, points in bare_by_surface.items():
+        base = bare_base_surface(surface)
+        a = audit.setdefault(base, {
+            "facet": base, "variants": [], "polarised": [], "unpolarised": [],
+            "magnetizations": {}, "declared_but_not_run": [],
+        })
+        if surface not in a["variants"]:
+            a["variants"].append(surface)
+        for p in points:
+            tag = f"{surface}_{p.layers}L"
+            if p.spin_polarised:
+                a["polarised"].append(tag)
+                if p.total_magnetization_bohr is not None:
+                    a["magnetizations"][tag] = p.total_magnetization_bohr
+            else:
+                a["unpolarised"].append(tag)
+                # Declared nspin = 2 but pw.out shows no spin channels: the run
+                # is not the calculation the input claims (invariant 7).
+                if p.nspin_declared == 2 and p.nspin_effective == 1:
+                    a["declared_but_not_run"].append(tag)
+    for a in audit.values():
+        a["has_polarised_reference"] = bool(a["polarised"])
+        a["mixed"] = bool(a["polarised"]) and bool(a["unpolarised"])
+    return audit
+
+
+# ---------------------------------------------------------------------------
+# MEASURING E_s, AND WHY THE CEILING CORRECTION IS EXACTLY E_s
+#
+# Pair a spin-polarised bare relaxation with its non-polarised counterpart at
+# the same thickness and the difference is the exchange stabilisation of the
+# slab's unpaired electrons. Divided by the number of dangling bonds in the
+# cell it is a per-dangling-bond energy:
+#
+#     E_s = [ E_bare(nspin=1) - E_bare(nspin=2) ] / n_DB      [eV per DB]
+#
+# n_DB is one per dangling bond per face, two faces. On (111)-1x1 that is 2 per
+# cell, so E_s is the difference over 2.
+#
+# Applying it to the ceiling needs no refit, because the geometry cancels
+# exactly. With one H per dangling bond on the H-terminated face:
+#
+#     slope        = N_H / 2A * EV_PER_A2 = n_DB / 2A * EV_PER_A2
+#     d(gamma_bare) = n_DB * E_s / 2A * EV_PER_A2       (both faces, per face)
+#     d(ceiling)    = d(gamma_bare) / slope = E_s
+#
+# So every facet's ceiling drops by the SAME E_s, in eV, independent of area,
+# coverage and thickness. The ranking of facets is untouched; the whole
+# delta_mu axis of ceilings slides down by E_s.
+#
+# WHERE THE IDENTITY BREAKS: it needs n_DB(bare) = N_H(H-terminated), i.e. an
+# unreconstructed 1x1 bare face whose dangling bonds are all still there. A
+# Pandey-reconstructed (111) and a dimerised (100) both quench dangling bonds,
+# so for them n_DB(bare) < N_H and the cancellation fails.
+#
+# The measurement validates its own premise: one unpaired electron per intact
+# dangling bond means the total magnetization of the polarised run should equal
+# n_DB. So
+#
+#   * |M| ~ n_DB      -> dangling bonds intact, identity holds, apply E_s
+#   * |M| ~ 0         -> fully quenched, E_s ~ 0, no correction (this is the
+#                        expected answer for dimerised (100))
+#   * anything else   -> partially quenched; E_s is reported but NOT applied,
+#                        because the cancellation is no longer exact and the
+#                        correct n_DB is a structural question for a human
+#
+# This is what makes (110) decisive. It is the candidate binding facet; if its
+# bare face comes back at 0.00 Bohr magnetons it takes no correction and the
+# margin to the interior-pressure sign change survives intact, and if it comes
+# back magnetic like (111) the margin shrinks by E_s.
+# ---------------------------------------------------------------------------
+MAG_TOLERANCE_BOHR = 0.1
+
+
+@dataclass(frozen=True)
+class SpinStabilisation:
+    """E_s per dangling bond for one facet, from paired nspin=1/2 runs."""
+    surface: str
+    n_db_per_cell: int
+    per_thickness_ev: dict          # layers -> E_s, eV per dangling bond
+    magnetization_bohr: dict        # layers -> total magnetization of nspin=2
+    e_s_ev: float
+    spread_ev: float
+    quenched: bool
+    identity_applies: bool
+    reason: str
+
+    @property
+    def thicknesses(self) -> list:
+        return sorted(self.per_thickness_ev)
+
+
+def measure_spin_stabilisation(unpolarised: list, polarised: list,
+                               n_db_per_cell: int) -> SpinStabilisation:
+    """E_s from same-thickness nspin=1 / nspin=2 pairs of one bare facet."""
+    surface = (polarised or unpolarised)[0].surface
+    if n_db_per_cell <= 0:
+        raise SurfaceEnergyError(
+            f"{surface}: dangling-bond count per cell must be positive, got "
+            f"{n_db_per_cell}; E_s per dangling bond is undefined without it")
+    nsp = {p.layers: p for p in unpolarised if not p.spin_polarised}
+    sp = {p.layers: p for p in polarised if p.spin_polarised}
+    shared = sorted(set(nsp) & set(sp))
+    if not shared:
+        raise SurfaceEnergyError(
+            f"{surface}: no thickness has both a spin-polarised and a "
+            f"non-spin-polarised run (nspin=1 at "
+            f"{', '.join(f'{n}L' for n in sorted(nsp)) or 'none'}; nspin=2 at "
+            f"{', '.join(f'{n}L' for n in sorted(sp)) or 'none'}). E_s is the "
+            f"difference of a PAIR; it cannot be taken across thicknesses, "
+            f"which would fold in the bulk term the pairing exists to cancel")
+
+    per, mags = {}, {}
+    for n in shared:
+        if nsp[n].n_C != sp[n].n_C or abs(
+                nsp[n].area_angstrom2 - sp[n].area_angstrom2) > 1e-6:
+            raise SurfaceEnergyError(
+                f"{surface} {n}L: the nspin=1 and nspin=2 runs differ in cell "
+                f"({nsp[n].n_C} vs {sp[n].n_C} carbon, "
+                f"{nsp[n].area_angstrom2:.4f} vs {sp[n].area_angstrom2:.4f} "
+                f"Angstrom^2). Their energy difference is not a spin "
+                f"stabilisation")
+        d_ry = nsp[n].energy_ry - sp[n].energy_ry
+        if d_ry < -1e-6:
+            raise SurfaceEnergyError(
+                f"{surface} {n}L: the spin-polarised run is HIGHER in energy "
+                f"than the non-polarised one by {-d_ry * RY_TO_EV:.4f} eV. "
+                f"nspin=2 is variational over nspin=1, so this cannot happen "
+                f"for the same geometry and settings -- the pair is not a "
+                f"pair, or one did not reach its ground state")
+        per[n] = d_ry * RY_TO_EV / n_db_per_cell
+        if sp[n].total_magnetization_bohr is not None:
+            mags[n] = sp[n].total_magnetization_bohr
+
+    e_s = float(np.mean(list(per.values())))
+    spread = max(per.values()) - min(per.values())
+
+    observed = [abs(m) for m in mags.values()]
+    quenched = bool(observed) and all(m < MAG_TOLERANCE_BOHR for m in observed)
+    intact = bool(observed) and all(
+        abs(m - n_db_per_cell) < MAG_TOLERANCE_BOHR for m in observed)
+    if not observed:
+        applies, why = False, (
+            "the spin-polarised runs recorded no total magnetization, so "
+            "whether the dangling bonds are intact cannot be confirmed")
+    elif quenched:
+        applies, why = False, (
+            f"total magnetization is 0 within {MAG_TOLERANCE_BOHR} Bohr "
+            f"mag/cell: the dangling bonds are quenched, E_s = "
+            f"{e_s:+.4f} eV/DB is consistent with zero, and no correction "
+            f"applies")
+    elif intact:
+        applies, why = True, (
+            f"total magnetization {', '.join(f'{v:.2f}' for v in mags.values())}"
+            f" matches n_DB = {n_db_per_cell}: the dangling bonds are intact, "
+            f"one unpaired electron each, so n_DB(bare) = N_H and the "
+            f"cancellation is exact")
+    else:
+        applies, why = False, (
+            f"total magnetization {', '.join(f'{v:.2f}' for v in mags.values())}"
+            f" is neither 0 nor n_DB = {n_db_per_cell}: the face is PARTIALLY "
+            f"quenched, so n_DB(bare) != N_H and d(ceiling) = E_s no longer "
+            f"holds. E_s is reported but not applied; the right dangling-bond "
+            f"count is a structural question")
+    return SpinStabilisation(
+        surface=surface, n_db_per_cell=n_db_per_cell, per_thickness_ev=per,
+        magnetization_bohr=mags, e_s_ev=e_s, spread_ev=spread,
+        quenched=quenched, identity_applies=applies, reason=why)
+
+
+def apply_spin_correction(bound: dict, stabilisations: dict) -> dict:
+    """Slide each ceiling down by its facet's E_s, keeping the raw one visible.
+
+    The corrected and uncorrected ceilings are both reported, and the binding
+    facet is recomputed on the corrected values -- correcting some facets and
+    not others can in principle change which one binds, even though a UNIFORM
+    E_s cannot.
+    """
+    corrected = {}
+    for s, e in bound.get("per_surface", {}).items():
+        if not e.get("available"):
+            continue
+        st = stabilisations.get(s)
+        e["delta_mu_max_uncorrected_ev"] = e["delta_mu_max_ev"]
+        if st is None:
+            e["spin_correction_applied"] = False
+            e["spin_correction_reason"] = (
+                "no paired nspin=1/nspin=2 runs for this facet; E_s not "
+                "measured")
+        else:
+            e["e_s_ev"] = st.e_s_ev
+            e["e_s_spread_ev"] = st.spread_ev
+            e["e_s_thicknesses"] = st.thicknesses
+            e["e_s_n_db_per_cell"] = st.n_db_per_cell
+            e["spin_correction_applied"] = st.identity_applies
+            e["spin_correction_reason"] = st.reason
+            if st.identity_applies:
+                e["delta_mu_max_ev"] = e["delta_mu_max_ev"] - st.e_s_ev
+        corrected[s] = e["delta_mu_max_ev"]
+    if corrected:
+        binding = min(corrected, key=corrected.get)
+        bound["binding_surface_uncorrected"] = bound.get("binding_surface")
+        bound["delta_mu_max_uncorrected_ev"] = bound.get("delta_mu_max_ev")
+        bound["binding_surface"] = binding
+        bound["delta_mu_max_ev"] = corrected[binding]
+    bound["spin_stabilisation"] = {
+        s: {"e_s_ev": st.e_s_ev, "spread_ev": st.spread_ev,
+            "n_db_per_cell": st.n_db_per_cell,
+            "per_thickness_ev": st.per_thickness_ev,
+            "magnetization_bohr": st.magnetization_bohr,
+            "quenched": st.quenched, "identity_applies": st.identity_applies,
+            "reason": st.reason}
+        for s, st in stabilisations.items()}
+    return bound
+
+
+def check_bare_spin_states(bare_by_surface: dict) -> list:
+    """Refuse known-wrong spin states; warn loudly about untested ones.
+
+    Returns warnings. Raises when a facet has a spin-polarised result AND a
+    non-spin-polarised one, because then the non-polarised energies are not
+    merely unvalidated -- they are known to be the wrong electronic state, and
+    mixing the two inside one ladder also breaks the Boettger fit, whose whole
+    premise is that every rung differs only by bulk carbon.
+    """
+    audit = spin_audit(bare_by_surface)
+    warnings, fatal = [], []
+    for base, a in sorted(audit.items()):
+        if a["declared_but_not_run"]:
+            fatal.append(
+                f"{base}: {', '.join(a['declared_but_not_run'])} declare "
+                f"nspin = 2 in pw.in but pw.out shows no spin channels. The "
+                f"run is not the calculation the input describes; do not use "
+                f"its energy (CLAUDE.md invariant 7).")
+            continue
+        if a["mixed"]:
+            mags = ", ".join(f"{k} {v:+.2f}" for k, v in
+                             sorted(a["magnetizations"].items())) or "none recorded"
+            fatal.append(
+                f"{base}: a spin-polarised result exists "
+                f"({', '.join(a['polarised'])}; total magnetization {mags} "
+                f"Bohr mag/cell) but {', '.join(a['unpolarised'])} ran "
+                f"non-spin-polarised. Those energies are the wrong electronic "
+                f"state, and a ladder mixing the two is not a ladder differing "
+                f"only by bulk carbon. Rerun them spin-polarised, or exclude "
+                f"those thicknesses explicitly with --bare-exclude-layers-for.")
+            continue
+        if not a["has_polarised_reference"]:
+            warnings.append(
+                f"bare {base} ({', '.join(a['variants'])}): NO spin-polarised "
+                f"run exists at any thickness, so gamma_bare and the "
+                f"dehydrogenation ceiling derived from it assume a closed-shell "
+                f"bare surface that has not been tested. A bare face carries "
+                f"one unpaired electron per dangling bond; if this facet does "
+                f"not quench them, the non-polarised energy is too high, so "
+                f"gamma_bare is too high and this ceiling is too PERMISSIVE. "
+                f"Queue a spin-polarised run at one thickness.")
+            continue
+        odd = {k: v for k, v in a["magnetizations"].items()
+               if abs(abs(v) - EXPECTED_MAG_PER_SYMMETRIC_CELL) > 0.1
+               and abs(v) > 0.1}
+        if odd:
+            warnings.append(
+                f"bare {base}: total magnetization "
+                + ", ".join(f"{k} {v:+.2f}" for k, v in sorted(odd.items()))
+                + f" Bohr mag/cell, not the "
+                  f"{EXPECTED_MAG_PER_SYMMETRIC_CELL:.1f} expected for one "
+                  f"unpaired electron per dangling bond on each of two faces. "
+                  f"Either the face is partly quenched or the slab is not the "
+                  f"structure assumed; check before using the ceiling.")
+    if fatal:
+        raise SurfaceEnergyError(
+            "bare-facet spin states are not usable for a dehydrogenation "
+            "ceiling:\n\n" + "\n\n".join(f"  * {m}" for m in fatal))
+    return warnings
 
 
 def bare_base_surface(tag: str) -> str:
@@ -689,6 +1257,14 @@ def lowest_bare_gamma(bare_fits: list) -> dict:
             raise SurfaceEnergyError(
                 f"{f.surface}: a bare-facet fit must contain no hydrogen, "
                 f"found N_H = {f.n_H}")
+        if f.rejected:
+            # Belt and braces: grade_fits already raises. Dropping a rejected
+            # variant here instead would raise the minimum over the remaining
+            # ones, which makes the ceiling too PERMISSIVE -- the one direction
+            # of error this bound must never fail in.
+            raise SurfaceEnergyError(
+                f"{f.surface}: rejected fit reached lowest_bare_gamma. "
+                f"{f.reject_reason}")
         base = bare_base_surface(f.surface)
         if base not in best or f.gamma_h_rich_j_m2 < best[base].gamma_h_rich_j_m2:
             best[base] = f
@@ -735,6 +1311,16 @@ def dehydrogenation_bound(h_fits: list, bare_fits: list) -> dict:
             "slope_j_m2_per_ev": f.slope_j_m2_per_ev,
             "delta_mu_max_ev": ceiling,
             "bare_epistemic_level": bare.epistemic_level,
+            # The ceiling is only as good as the bare ladder behind it, so the
+            # bare ladder's own bookkeeping travels with the number.
+            "bare_layers_used": list(bare.layers_used),
+            "bare_layers_excluded": list(bare.layers_excluded),
+            "bare_exclusion_reason": bare.exclusion_reason,
+            "bare_mu_c_drift_mry": bare.mu_c_drift_mry,
+            "bare_gamma_bias_j_m2": bare.gamma_bias_from_mu_c_drift_j_m2,
+            "bare_gamma_scatter_j_m2": bare.gamma_scatter_j_m2,
+            "h_layers_used": list(f.layers_used),
+            "h_layers_excluded": list(f.layers_excluded),
         }
         ceilings[f.surface] = ceiling
     binding = min(ceilings, key=ceilings.get) if ceilings else None
@@ -835,8 +1421,10 @@ SUMMARY_FIELDS = [
     "dgamma_dmu_j_m2_per_ev", "coverage_n_h_over_2a_per_a2",
     "zero_crossing_delta_mu_ev",
     "n_H", "cell_area_angstrom2",
-    "mu_c_fit_ry", "mu_c_bulk_ry", "mu_c_drift_mry", "fit_rms_ry",
-    "layers_used", "layers_excluded", "per_slab_gamma_j_m2",
+    "mu_c_fit_ry", "mu_c_bulk_ry", "mu_c_drift_mry",
+    "gamma_bias_from_mu_c_drift_j_m2", "fit_rms_ry",
+    "layers_used", "layers_excluded", "exclusion_reason",
+    "per_slab_gamma_j_m2",
     "mu_h_rich_ry", "mu_c_reference", "notes",
 ]
 
@@ -864,9 +1452,12 @@ def summary_rows(fits: list, ref: Reference) -> list:
             "mu_c_fit_ry": _f(f.mu_c_fit_ry, 9),
             "mu_c_bulk_ry": _f(f.mu_c_bulk_ry, 9),
             "mu_c_drift_mry": _f(f.mu_c_drift_mry, 4),
+            "gamma_bias_from_mu_c_drift_j_m2": _f(
+                f.gamma_bias_from_mu_c_drift_j_m2, 4),
             "fit_rms_ry": _f(f.fit_rms_ry, 9),
             "layers_used": " ".join(f"{n}L" for n in f.layers_used),
             "layers_excluded": " ".join(f"{n}L" for n in f.layers_excluded) or "none",
+            "exclusion_reason": f.exclusion_reason,
             "per_slab_gamma_j_m2": "; ".join(
                 f"{n}L:{f.per_slab_gamma_j_m2[n]:+.4f}"
                 for n in sorted(f.per_slab_gamma_j_m2)),
@@ -961,9 +1552,22 @@ def build_config(fits: list, ref: Reference, meta: dict) -> dict:
                           "the thickness ladder (Boettger construction), "
                           "cross-checked against the bulk reference"),
             "excluded_layers": sorted({n for f in fits for n in f.layers_excluded}),
-            "excluded_reason": ("6L is outside the asymptotic regime on all "
-                                "three surfaces; excluded consistently with "
-                                "fit_tau_infinity.py"),
+            "excluded_layers_per_surface": {
+                f.surface: {"used": f.layers_used,
+                            "excluded": f.layers_excluded,
+                            "reason": f.exclusion_reason}
+                for f in sorted(fits, key=lambda x: x.surface)},
+            "excluded_reason": ("per surface; see excluded_layers_per_surface. "
+                                "The campaign default drops 6L, which is "
+                                "outside the asymptotic regime on all three "
+                                "H-terminated surfaces, consistently with "
+                                "fit_tau_infinity.py. Bare ladders carry their "
+                                "own policy: they converge more slowly and can "
+                                "need more of the thin end dropped."),
+            "mu_c_reject_j_m2": meta["mu_c_reject_j_m2"],
+            "mu_c_reject_meaning": (
+                "a fit whose mu_C drift biases gamma by more than this is "
+                "rejected outright, not warned about"),
             "runs_dir": meta["runs_dir"],
             "run_prefix": meta["run_prefix"],
         },
@@ -1002,6 +1606,154 @@ def render_report(fits: list, ref: Reference, crossings: list, meta: dict) -> st
           "Angstrom^-2. `scatter` is the spread of the per-slab gamma across "
           "the fitted ladder using the independent bulk mu_C, and is the honest "
           "uncertainty on each number.", ""]
+
+    L += ["## Which thicknesses entered each fit", "",
+          "Exclusions are per surface, not global. A fit is REJECTED outright "
+          "-- nothing written, not a warning -- when the mu_C drift biases "
+          f"gamma by more than {meta['mu_c_reject_j_m2']:.3f} J/m^2, since a "
+          "biased gamma is a different number rather than a noisier one. The "
+          "bias column below is exact: it is gamma from the Boettger fit minus "
+          "the mean per-slab gamma taken with the independent bulk mu_C.", "",
+          "| surface | ladder | used | dropped | why dropped | gamma bias from "
+          "mu_C drift |",
+          "| --- | --- | --- | --- | --- | ---: |"]
+    for f in sorted(fits, key=lambda x: x.surface):
+        ladder = " ".join(f"{n}L" for n in sorted(f.per_slab_gamma_j_m2))
+        L.append(
+            f"| {f.orientation} | {ladder} | "
+            f"{' '.join(f'{n}L' for n in f.layers_used)} | "
+            f"{' '.join(f'{n}L' for n in f.layers_excluded) or 'none'} | "
+            f"{f.exclusion_reason or '-'} | "
+            f"{f.gamma_bias_from_mu_c_drift_j_m2:+.4f} J/m^2 |")
+    L.append("")
+
+    bound = meta.get("dehydrogenation_bound") or {}
+    L += ["## Dehydrogenation ceiling on delta_mu", ""]
+    if not bound.get("available"):
+        L += [f"**MISSING.** {bound.get('reason', 'no bare-facet ladder.')}", ""]
+    else:
+        L += ["gamma_bare carries no hydrogen, so it does not move with mu_H "
+              "and the condition gamma_H(delta_mu) > gamma_bare becomes a hard "
+              "ceiling: delta_mu_max = (gamma_bare - gamma_H_rich) / (N_H/2A). "
+              "The BINDING facet is the one with the smallest ceiling -- the "
+              "first to dehydrogenate invalidates the H-terminated Wulff "
+              "construction, whatever the others do.", "",
+              "| facet | gamma_H rich | gamma_bare | bare variant | bare ladder "
+              "used | bare dropped | spin | delta_mu_max (eV, after any E_s correction) |",
+              "| --- | ---: | ---: | --- | --- | --- | --- | ---: |"]
+        for s, e in sorted(bound.get("per_surface", {}).items()):
+            if not e.get("available"):
+                L.append(f"| {s} | | | {e.get('reason', 'unavailable')} | | | | |")
+                continue
+            if e.get("bare_spin_polarised"):
+                spin = "nspin=2"
+            elif e.get("spin_correction_applied"):
+                spin = f"nspin=1 + E_s {e['e_s_ev']:+.3f} eV/DB"
+            elif e.get("e_s_ev") is not None:
+                spin = f"nspin=1, E_s {e['e_s_ev']:+.3f} eV/DB not applied"
+            else:
+                spin = "**nspin=1, UNTESTED**"
+            L.append(
+                f"| {s} | {e['gamma_h_rich_j_m2']:+.4f} | "
+                f"{e['gamma_bare_j_m2']:+.4f} | {e['bare_variant']} "
+                f"({e['bare_epistemic_level']}) | "
+                f"{' '.join(f'{n}L' for n in e['bare_layers_used'])} | "
+                f"{' '.join(f'{n}L' for n in e['bare_layers_excluded']) or 'none'} "
+                f"| {spin} | {e['delta_mu_max_ev']:.4f} |")
+        L += ["",
+              f"**Binding facet {bound['binding_surface']}: delta_mu <= "
+              f"{bound['delta_mu_max_ev']:.4f} eV.** Beyond it the H-terminated "
+              f"surface described everywhere else in this report is not the "
+              f"one that is there.", ""]
+        stab = bound.get("spin_stabilisation") or {}
+        if stab:
+            L += ["### Spin stabilisation E_s, and the corrected ceiling", "",
+                  "Pairing each bare relaxation with its counterpart in the "
+                  "other spin state gives the exchange stabilisation directly:",
+                  "", "    E_s = [ E_bare(nspin=1) - E_bare(nspin=2) ] / n_DB "
+                  "   [eV per dangling bond]", "",
+                  "with n_DB the dangling bonds per cell, read from the "
+                  "matching H facet's hydrogen count (one H caps one dangling "
+                  "bond). E_s is a SAME-THICKNESS difference; taking it across "
+                  "thicknesses would fold back in the bulk term the pairing "
+                  "exists to cancel.", "",
+                  "Applying it needs no refit, because the geometry cancels "
+                  "exactly. With one H per dangling bond, slope = n_DB/2A and "
+                  "d(gamma_bare) = n_DB*E_s/2A, so", "",
+                  "    d(delta_mu_max) = E_s", "",
+                  "identically on every facet, independent of area, coverage "
+                  "and thickness. A uniform E_s slides the whole ceiling axis "
+                  "down without touching the ranking.", "",
+                  "**The identity holds only for unreconstructed 1x1 bare "
+                  "faces with their dangling bonds intact.** It needs "
+                  "n_DB(bare) = N_H, and a reconstruction breaks that: Pandey "
+                  "(111) and dimerised (100) both quench dangling bonds, so "
+                  "neither takes this correction. The measurement checks its "
+                  "own premise -- one unpaired electron per intact dangling "
+                  "bond means the total magnetization should equal n_DB, so "
+                  "|M| ~ n_DB confirms the identity, |M| ~ 0 means quenched "
+                  "and no correction, and anything between means partially "
+                  "quenched and the correction is reported but withheld.", "",
+                  "| facet | n_DB | pairs | E_s (eV/DB) | spread | M (Bohr "
+                  "mag/cell) | applied? |",
+                  "| --- | ---: | --- | ---: | ---: | ---: | --- |"]
+            for s, st in sorted(stab.items()):
+                mags = ", ".join(f"{v:.2f}"
+                                 for _, v in sorted(st["magnetization_bohr"].items()))
+                L.append(
+                    f"| {s} | {st['n_db_per_cell']} | "
+                    f"{' '.join(f'{n}L' for n in sorted(st['per_thickness_ev']))} | "
+                    f"{st['e_s_ev']:+.4f} | {st['spread_ev']:.4f} | "
+                    f"{mags or '-'} | "
+                    f"{'yes' if st['identity_applies'] else 'NO'} |")
+            L += ["", "Why, per facet:", ""]
+            L += [f"* {s}: {st['reason']}" for s, st in sorted(stab.items())]
+            L.append("")
+            applied = {s: st for s, st in stab.items() if st["identity_applies"]}
+            if applied:
+                L += ["| facet | ceiling before (eV) | E_s | ceiling after "
+                      "(eV) |", "| --- | ---: | ---: | ---: |"]
+                for s, e in sorted(bound.get("per_surface", {}).items()):
+                    if not e.get("available"):
+                        continue
+                    es = e.get("e_s_ev")
+                    L.append(
+                        f"| {s} | {e['delta_mu_max_uncorrected_ev']:.4f} | "
+                        + (f"{es:+.4f} |" if e.get("spin_correction_applied")
+                           else ("not applied |" if es is not None
+                                 else "not measured |"))
+                        + f" {e['delta_mu_max_ev']:.4f} |")
+                L += ["",
+                      f"Uncorrected binding facet "
+                      f"{bound.get('binding_surface_uncorrected')} at "
+                      f"{bound.get('delta_mu_max_uncorrected_ev'):.4f} eV; "
+                      f"corrected binding facet {bound['binding_surface']} at "
+                      f"{bound['delta_mu_max_ev']:.4f} eV.", ""]
+
+        unpol = sorted(s for s, e in bound.get("per_surface", {}).items()
+                       if e.get("available") and not e.get("bare_spin_polarised")
+                       and not (bound.get("spin_stabilisation") or {}).get(s))
+        if unpol:
+            L += [f"**The bare energies for {', '.join(unpol)} are "
+                  f"non-spin-polarised.** A bare face carries one unpaired "
+                  f"electron per dangling bond, and nspin = 2 is variational "
+                  f"over nspin = 1, so those energies are upper bounds, "
+                  f"gamma_bare is an upper bound, and the ceilings above are "
+                  f"too PERMISSIVE by an amount no diagnostic in this report "
+                  f"can size. Each 1 J/m^2 of overestimate in gamma_bare "
+                  f"inflates that facet's ceiling by "
+                  + ", ".join(
+                      f"{1.0 / next(f.slope_j_m2_per_ev for f in fits if f.surface == s):.2f} eV ({s})"
+                      for s in unpol if any(f.surface == s for f in fits))
+                  + ".", ""]
+        mags = {k: v for a in (bound.get("bare_spin_audit") or {}).values()
+                for k, v in a["magnetizations"].items()}
+        if mags:
+            L += ["Total magnetization of the spin-polarised bare runs, "
+                  "Bohr magnetons per cell (2.00 = one unpaired electron per "
+                  "dangling bond on each of the two faces):", ""]
+            L += [f"* {k}: {v:+.2f}" for k, v in sorted(mags.items())]
+            L.append("")
 
     L += ["## Dependence on mu_H", "",
           "Lowering mu_H below the H-rich limit raises every gamma, at a rate "
@@ -1111,16 +1863,27 @@ def render_report(fits: list, ref: Reference, crossings: list, meta: dict) -> st
                      f"{r['p_h2_bar']:.0e} | {r['p_h2_torr']:.1e} | {tk} | {tc} |")
         L.append("")
 
-    L += ["", "## Caveats", "",
-          "* **The H-terminated surface is ASSUMED to remain the stable "
-          "termination at every mu_H.** Only H-terminated facets were "
-          "calculated, so gamma_H can be extrapolated to arbitrarily "
-          "hydrogen-poor conditions without anything stopping it. In reality "
-          "the surface dehydrogenates or reconstructs once gamma_H rises above "
-          "the bare or reconstructed surface energy, and that bound cannot be "
-          "computed from this data set. It is the single largest limitation on "
-          "everything above, and it bites hardest exactly where delta_mu is "
-          "large.",
+    L += ["", "## Caveats", ""]
+    if bound.get("available"):
+        L += [f"* **The H-terminated surface remains the stable termination "
+              f"only up to delta_mu = {bound['delta_mu_max_ev']:.4f} eV**, "
+              f"where {bound['binding_surface']} dehydrogenates. Every number "
+              f"above at a larger delta_mu describes a surface that is not "
+              f"there. The ceiling is only as good as the bare ladder behind "
+              f"it: it inherits that ladder's thickness convergence, and it "
+              f"assumes the lowest bare reconstruction generated is the lowest "
+              f"one that exists.",]
+    else:
+        L += ["* **The H-terminated surface is ASSUMED to remain the stable "
+              "termination at every mu_H.** Only H-terminated facets were "
+              "calculated, so gamma_H can be extrapolated to arbitrarily "
+              "hydrogen-poor conditions without anything stopping it. In "
+              "reality the surface dehydrogenates or reconstructs once gamma_H "
+              "rises above the bare or reconstructed surface energy, and that "
+              "bound cannot be computed from this data set. It is the single "
+              "largest limitation on everything above, and it bites hardest "
+              "exactly where delta_mu is large.",]
+    L += [
           "* Competing kinetics are not modelled at all. Nanodiamond surfaces "
           "graphitize on annealing in vacuum, and that process is not in this "
           "thermodynamic picture. A (T, p) point being thermodynamically "
@@ -1146,31 +1909,119 @@ def render_report(fits: list, ref: Reference, crossings: list, meta: dict) -> st
 # -------------------------------------------------------------------- main
 def run(runs_dir, reference_dir, out_dir, prefix, exclude_layers, mu_h_range,
         mu_h_points, mu_c_tol_mry, config_out=None,
-        bare_runs_dir=None, bare_prefix="bare") -> dict:
+        bare_runs_dir=None, bare_prefix="bare", *,
+        exclude_layers_for=None,
+        bare_exclude_layers=None, bare_exclude_layers_for=None,
+        mu_c_reject_j_m2=DEFAULT_MU_C_REJECT_J_M2,
+        bare_spin_runs_dir=None, bare_spin_prefix=None) -> dict:
     ref = load_references(reference_dir)
     by_surface = load_slab_energies(runs_dir, prefix)
     for points in by_surface.values():
         check_reference_consistency(points, ref)
 
-    fits = [fit_surface_energy(s, pts, ref, exclude_layers)
-            for s, pts in sorted(by_surface.items())]
-    warnings = grade_fits(fits, mu_c_tol_mry)
+    exclude_layers_for = exclude_layers_for or {}
+    fits = []
+    for s, pts in sorted(by_surface.items()):
+        excl, why = resolve_exclusions(s, exclude_layers, exclude_layers_for)
+        fits.append(fit_surface_energy(s, pts, ref, excl, why))
+    warnings = grade_fits(fits, mu_c_tol_mry, mu_c_reject_j_m2,
+                          "--exclude-layers-for")
 
     # --- bare facets: the ceiling on delta_mu, if the campaign has been run
+    #
+    # The bare ladder gets its own exclusion policy. It is not the H ladder's:
+    # two interacting dangling-bond faces converge more slowly than two
+    # passivated ones, so the thin end of a bare ladder can be unusable at
+    # thicknesses where the H-terminated one is already asymptotic. Defaulting
+    # the bare policy to the H one (as this used to, and then only when the
+    # ladder had more than three points) is how a 6L/8L-contaminated bare fit
+    # got as far as the ceiling.
     bare_fits = []
+    bare_spin_audit = {}
     if bare_runs_dir and Path(bare_runs_dir).is_dir():
+        bare_exclude = (list(exclude_layers) if bare_exclude_layers is None
+                        else list(bare_exclude_layers))
+        bare_exclude_layers_for = bare_exclude_layers_for or {}
         try:
             bare_by_surface = load_slab_energies(bare_runs_dir, bare_prefix)
         except SurfaceEnergyError:
             bare_by_surface = {}
+        # Before any fitting: a ladder in the wrong electronic state cannot be
+        # rescued by a better fit, so this gate runs first.
+        spin_warnings = check_bare_spin_states(bare_by_surface)
+        warnings.extend(spin_warnings)
+        bare_spin_audit = spin_audit(bare_by_surface)
         for surface, pts in sorted(bare_by_surface.items()):
             check_reference_consistency(pts, ref)
-            excl = [n for n in exclude_layers
-                    if any(p.layers == n for p in pts)] \
-                if len(pts) > 3 else []
-            bare_fits.append(fit_surface_energy(surface, pts, ref, excl))
-        grade_fits(bare_fits, mu_c_tol_mry)
+            excl, why = resolve_exclusions(
+                surface, bare_exclude, bare_exclude_layers_for)
+            # A bare ladder that simply does not have the default thickness
+            # (the Pandey 20-28L ladder does not have a 6L rung) is not an
+            # error; a MISDIRECTED exclusion is, and fit_surface_energy still
+            # catches that for anything named explicitly.
+            if surface not in bare_exclude_layers_for:
+                present = {p.layers for p in pts}
+                excl = [n for n in excl if n in present]
+                why = (f"campaign default "
+                       f"({', '.join(f'{n}L' for n in excl)})" if excl
+                       else "campaign default, none present in this ladder")
+            bare_fits.append(
+                fit_surface_energy(surface, pts, ref, excl, why))
+        grade_fits(bare_fits, mu_c_tol_mry, mu_c_reject_j_m2,
+                   "--bare-exclude-layers-for")
+    # --- E_s from paired nspin=1 / nspin=2 bare runs, if the pairs exist.
+    #
+    # These live in their own directory and are deliberately NOT rungs of the
+    # fitted ladder: the ladder must be spin-consistent, and E_s is a
+    # same-thickness DIFFERENCE, which is what cancels the bulk term. n_DB per
+    # cell is read from the matching H facet's hydrogen count -- one H caps one
+    # dangling bond -- rather than assumed from the orientation.
+    stabilisations = {}
+    if bare_spin_runs_dir and Path(bare_spin_runs_dir).is_dir():
+        n_db = {f.surface: f.n_H for f in fits}
+        try:
+            spin_by_surface = load_slab_energies(
+                bare_spin_runs_dir, bare_spin_prefix or bare_prefix)
+        except SurfaceEnergyError:
+            spin_by_surface = {}
+        for surface, sp_pts in sorted(spin_by_surface.items()):
+            check_reference_consistency(sp_pts, ref)
+            base = bare_base_surface(surface)
+            nsp_pts = bare_by_surface.get(surface, []) if bare_runs_dir else []
+            if not nsp_pts or base not in n_db:
+                warnings.append(
+                    f"spin-polarised runs found for {surface} but no "
+                    f"{'non-polarised counterpart' if not nsp_pts else 'H-terminated facet'}"
+                    f" to pair them with; E_s not measured")
+                continue
+            if surface != base:
+                warnings.append(
+                    f"{surface} is a reconstruction variant; a reconstruction "
+                    f"quenches dangling bonds, so n_DB(bare) != N_H and "
+                    f"d(ceiling) = E_s does not apply to it. E_s is measured "
+                    f"for the record only.")
+            st = measure_spin_stabilisation(nsp_pts, sp_pts, n_db[base])
+            if surface == base:
+                stabilisations[base] = st
+            if not st.identity_applies:
+                warnings.append(
+                    f"bare {surface}: E_s = {st.e_s_ev:+.4f} eV/DB measured "
+                    f"from {', '.join(f'{n}L' for n in st.thicknesses)}, but "
+                    f"NOT applied to the ceiling -- {st.reason}")
+
     bound = dehydrogenation_bound(fits, bare_fits)
+    bound["bare_spin_audit"] = bare_spin_audit
+    for s, e in bound.get("per_surface", {}).items():
+        a = bare_spin_audit.get(s)
+        if e.get("available") and a is not None:
+            e["bare_spin_polarised"] = a["has_polarised_reference"]
+            e["bare_total_magnetization_bohr"] = a["magnetizations"]
+            if not a["has_polarised_reference"] and s not in stabilisations:
+                e["ceiling_caveat"] = (
+                    "non-spin-polarised bare energy; nspin=2 is variational "
+                    "over nspin=1, so gamma_bare is an upper bound and this "
+                    "ceiling is too permissive")
+    apply_spin_correction(bound, stabilisations)
     if not bound["available"]:
         warnings.append(
             "dehydrogenation bound MISSING: " + bound["reason"])
@@ -1183,6 +2034,15 @@ def run(runs_dir, reference_dir, out_dir, prefix, exclude_layers, mu_h_range,
         "reference_dir": str(reference_dir),
         "mu_h_range": list(mu_h_range), "mu_h_points": mu_h_points,
         "mu_c_tol_mry": mu_c_tol_mry,
+        "mu_c_reject_j_m2": mu_c_reject_j_m2,
+        "exclusions": {f.surface: {"used": list(f.layers_used),
+                                   "excluded": list(f.layers_excluded),
+                                   "reason": f.exclusion_reason}
+                       for f in fits},
+        "bare_exclusions": {f.surface: {"used": list(f.layers_used),
+                                        "excluded": list(f.layers_excluded),
+                                        "reason": f.exclusion_reason}
+                            for f in bare_fits},
         "wulff_available_from_ev": avail,
         "rrho_validation": validation,
         "dehydrogenation_bound": bound,
@@ -1237,7 +2097,25 @@ def main(argv=None) -> int:
     ap.add_argument("--out-dir", default=DEFAULT_OUT_DIR)
     ap.add_argument("--prefix", default=DEFAULT_PREFIX)
     ap.add_argument("--exclude-layers", type=int, nargs="*", default=[6],
-                    metavar="N")
+                    metavar="N",
+                    help="default thicknesses to drop from every H-terminated "
+                         "ladder (default: %(default)s)")
+    ap.add_argument("--exclude-layers-for", action="append", default=[],
+                    metavar="SURFACE=N[,N...]",
+                    help="per-surface override of --exclude-layers, e.g. "
+                         "C111=6,8. Repeatable. Which thicknesses are outside "
+                         "the asymptotic regime is a property of the surface, "
+                         "not of the campaign.")
+    ap.add_argument("--bare-exclude-layers", type=int, nargs="*", default=None,
+                    metavar="N",
+                    help="default thicknesses to drop from every BARE ladder. "
+                         "Defaults to --exclude-layers, but bare facets have "
+                         "two interacting dangling-bond faces and converge "
+                         "more slowly, so they often need more.")
+    ap.add_argument("--bare-exclude-layers-for", action="append", default=[],
+                    metavar="SURFACE=N[,N...]",
+                    help="per-surface override for the bare ladder, e.g. "
+                         "C111=6,8. Repeatable.")
     ap.add_argument("--mu-h-range", type=float, nargs=2, default=[0.0, 3.0],
                     metavar=("LO", "HI"),
                     help="delta_mu = mu_H(H-rich) - mu_H, in eV. The upper "
@@ -1248,12 +2126,32 @@ def main(argv=None) -> int:
                     help="warn and downgrade to L1 if the fitted mu_C drifts "
                          "from the bulk reference by more than this "
                          "(default: %(default)s)")
+    ap.add_argument("--mu-c-reject-j-m2", type=float,
+                    default=DEFAULT_MU_C_REJECT_J_M2, metavar="J_M2",
+                    help="REJECT the fit -- raise, write nothing -- if the "
+                         "mu_C drift biases gamma by more than this many "
+                         "J/m^2. Stated in J/m^2 and not mRy because the bias "
+                         "scales as <N_C>/2A and is therefore not comparable "
+                         "between surfaces in mRy (default: %(default)s)")
     ap.add_argument("--bare-runs-dir", default=None,
                     help="directory holding the bare-facet ladder from "
                          "make_bare_slabs.py. Without it the dehydrogenation "
                          "ceiling on delta_mu cannot be computed and is "
                          "reported as MISSING.")
     ap.add_argument("--bare-prefix", default="bare")
+    ap.add_argument("--bare-spin-runs-dir", default=None,
+                    help="directory holding SPIN-POLARISED bare relaxations, "
+                         "named the same as their non-polarised counterparts "
+                         "in --bare-runs-dir. Same-thickness pairs give the "
+                         "exchange stabilisation E_s per dangling bond, and "
+                         "the ceiling drops by exactly E_s on every "
+                         "unreconstructed facet. Kept separate from the fitted "
+                         "ladder on purpose: the ladder must be "
+                         "spin-consistent, and E_s must be a same-thickness "
+                         "difference.")
+    ap.add_argument("--bare-spin-prefix", default=None,
+                    help="run prefix inside --bare-spin-runs-dir "
+                         "(default: --bare-prefix)")
     ap.add_argument("--write-config", nargs="?", const=DEFAULT_CONFIG_OUT,
                     default=None, metavar="PATH",
                     help=f"regenerate the surface-energy config "
@@ -1264,7 +2162,15 @@ def main(argv=None) -> int:
         result = run(args.runs_dir, args.reference_dir, args.out_dir,
                      args.prefix, args.exclude_layers, args.mu_h_range,
                      args.mu_h_points, args.mu_c_tol_mry, args.write_config,
-                     args.bare_runs_dir, args.bare_prefix)
+                     args.bare_runs_dir, args.bare_prefix,
+                     exclude_layers_for=parse_layer_exclusions(
+                         args.exclude_layers_for),
+                     bare_exclude_layers=args.bare_exclude_layers,
+                     bare_exclude_layers_for=parse_layer_exclusions(
+                         args.bare_exclude_layers_for),
+                     mu_c_reject_j_m2=args.mu_c_reject_j_m2,
+                     bare_spin_runs_dir=args.bare_spin_runs_dir,
+                     bare_spin_prefix=args.bare_spin_prefix)
     except SurfaceEnergyError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
@@ -1275,15 +2181,25 @@ def main(argv=None) -> int:
           f"mu_C = {ref.mu_c_bulk_ry:.9f} Ry (BM3 E0/atom)")
     print(f"# gamma = [E_slab - N_C*mu_C - N_H*mu_H] / 2A, per face")
     print(f"{'surface':9s} {'lvl':4s} {'gamma(H-rich)':>14s} {'scatter':>9s} "
-          f"{'dg/d(-muH)':>11s} {'g=0 at':>9s} {'muC drift':>11s}")
+          f"{'dg/d(-muH)':>11s} {'g=0 at':>9s} {'muC drift':>11s} "
+          f"{'g bias':>9s}")
     for f in fits:
         z = f.zero_crossing_ev()
         print(f"{f.orientation:9s} {f.epistemic_level:4s} "
               f"{f.gamma_h_rich_j_m2:+14.4f} {f.gamma_scatter_j_m2:9.4f} "
               f"{f.slope_j_m2_per_ev:11.4f} "
               f"{(f'{z:.4f}' if z is not None else 'never'):>9s} "
-              f"{f.mu_c_drift_mry:+10.4f}m")
+              f"{f.mu_c_drift_mry:+10.4f}m "
+              f"{f.gamma_bias_from_mu_c_drift_j_m2:+9.4f}")
     print("# gamma in J/m^2, dg/d(-muH) in (J/m^2)/eV, g=0 at delta_mu in eV")
+    print(f"# 'g bias' = gamma shift from the mu_C drift, J/m^2; rejection "
+          f"budget {meta['mu_c_reject_j_m2']:.3f}")
+    for label, key in (("H", "exclusions"), ("bare", "bare_exclusions")):
+        for s, e in sorted(meta[key].items()):
+            print(f"# {label} ladder {s}: used "
+                  f"{' '.join(f'{n}L' for n in e['used'])}, dropped "
+                  f"{' '.join(f'{n}L' for n in e['excluded']) or 'nothing'} "
+                  f"({e['reason']})")
     avail = meta["wulff_available_from_ev"]
     print(f"# Wulff construction available from delta_mu >= "
           + (f"{avail:.4f} eV" if avail is not None else "never"))
