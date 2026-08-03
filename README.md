@@ -1,25 +1,113 @@
 # slab-generator
-scripts for generating diamond slabs
+
+**Diamond surface slab construction for periodic DFT, built for NV-center surface science.**
+
+`slab-generator` builds symmetric, dipole-free diamond slab models across the (111), (110), and (100) orientations with a curated library of surface terminations and reconstructions, and emits ready-to-run Quantum ESPRESSO inputs. It was developed in the Owen Group (Columbia University, Department of Chemistry) to support a systematic first-principles screen of surface terminations for nanodiamond-hosted nitrogen-vacancy (NV) quantum sensors — identifying surface chemistries that stabilize the NV⁻ charge state while minimizing surface stress and strain.
+
+Development is active; interfaces may change ahead of the accompanying publication.
+
+> **Working on this repo?** Read [`CLAUDE.md`](CLAUDE.md) first. It carries the
+> project's invariants, sign conventions, and epistemic-level rules, and it is
+> the authority where this README and it disagree.
+
+## What it does
+
+- **Slab construction** — symmetric slabs (matching top/bottom terminations) at user-specified thickness, with the DFT bulk lattice constant as the strain reference to avoid Pulay-stress artifacts.
+- **Termination library** — 19 validated surface motifs across (111), (110), and (100): hydrogen, fluorine, oxygen (ether and ketone), hydroxyl, and clean reconstructed surfaces, including reconstructions transcribed from published coordinates. Two additional literature motifs are included as placeholder stubs pending author-provided coordinates.
+- **Quantum ESPRESSO input generation** — `pw.x` inputs with sensible defaults for surface work (`tstress=.true.`, Methfessel-Paxton smearing, thickness-scaled k-grids), including constrained in-plane variable-cell relaxation (`calculation='vc-relax'`, `cell_dofree='2Dxy'`) for surface-stress extraction.
+- **Structural pre-flight gate** — `preflight.py` refuses to let a structure reach the queue if it contradicts its own name or the project's invariants (see below).
+- **Validation** — the library build pipeline runs 16 structural and chemical validation checks (stoichiometry, symmetry, bond-length sanity, termination coverage) on every motif.
+
+## Installation
+
+```bash
+git clone https://github.com/JOwenLab/slab-generator.git
+cd slab-generator
+pip install -r requirements.txt
+```
+
+Verified against **Python 3.9**. Runtime dependencies are `numpy` and, for the
+figure scripts only, `matplotlib`; `pytest` runs the suite. The analysis and
+fitting modules are deliberately pure-Python standard library beyond numpy so
+they run unchanged on the cluster login node.
+
+**Pseudopotentials are not distributed** with this repository. Inputs are
+written for SSSP-style UPF files (PBE); download them from the
+[SSSP library](https://www.materialscloud.org/discover/sssp). The production
+runs use `C.pbe-n-kjpaw_psl.1.0.0.UPF` and `H_ONCV_PBE-1.0.oncvpsp.upf`;
+archived runs additionally reference `H.pbe-kjpaw_psl.1.0.0.UPF`,
+`C_PBE_TM_2pj.UPF`, and `H_HSCV_PBE-1.0.UPF`.
+
+## Reproducing every derived artifact
+
+Every CSV, JSON, and report under `results/` is regenerated from committed
+inputs by one script:
+
+```bash
+./regenerate.sh            # rebuild everything
+./regenerate.sh --check    # rebuild, then fail if any tracked file changed
+```
+
+This exists because several artifacts previously required flags recorded
+nowhere — the NV coupling constants, the μ_H scan range, `--write-config`.
+`regenerate.sh` is the record. It runs no DFT: every `pw.out` under `results/`
+is an input to it.
+
+## Workflow for a new slab
+
+```bash
+# 1. generate. --a0 defaults to the fitted value in config/reference_pbe_sssp.json;
+#    pass it explicitly only to override.
+python3 slabgen.py <motif> --layers 6 --format qe --out runs/<name>/pw.in
+
+# 2. GATE IT before it reaches the queue (CLAUDE.md section 7)
+python3 preflight.py runs/<name> || { echo "REFUSING TO SUBMIT"; exit 1; }
+
+# 3. run, parse, analyse
+python3 run_queue.py --dry-run --only <name> --pseudo-source <pseudo_source>
+python3 run_queue.py --run     --only <name> --pseudo-source <pseudo_source>
+python3 parse_slab.py
+
+# 4. stress SCF on the relaxed geometry
+python3 make_slab_stress_scf.py
+python3 run_queue.py --run --only <name>_stress_scf --pseudo-source runs/<name>
+python3 update_slab_analysis.py
+
+# 5. strain series
+python3 make_slab_strain_series.py --only <name>_stress_scf
+python3 run_queue.py --run --only <name>_strain_biaxial --pseudo-source runs/<name> --max-jobs 5
+python3 update_slab_analysis.py
+```
+
+Rebuild and validate the full motif library:
+
+```bash
+python3 build_library.py     # see CLAUDE.md section 6 before running this
+```
 
 ## PBE/SSSP bulk diamond reference
 
-The project uses a 5-point hydrostatic QE series as the canonical bulk diamond reference
-(PBE functional, SSSP 1.3.0 Precision pseudopotential set, 80 Ry / 640 Ry cutoffs,
-8×8×8 k-mesh, 8-atom conventional cell).
-
-**Raw parsed reference data:** `results/reference_diamond/reference_summary.{csv,json,md}`
-
-**Fitted reference parameters:** `results/reference_diamond/bulk_fit_summary.{csv,json}` and
-`results/reference_diamond/bulk_fit_report.md`
+The project uses a 5-point hydrostatic QE series as the canonical bulk diamond
+reference (PBE, SSSP 1.3.0 Precision, 8-atom conventional cell). The production
+series is at 90/720 Ry with an 8×8×8 k-mesh; an earlier 80/640 Ry series is
+retained for comparison.
 
 **Authoritative project config:** `config/reference_pbe_sssp.json`
 
-The fitted equilibrium lattice constant is **a₀ ≈ 3.5736 Å** (from E–V fit) with a bulk
-modulus of **B ≈ 445 GPa**. Use this value as the default PBE/SSSP diamond lattice constant
-when generating slabs or setting up strain series.
+**Do not quote a0 or B here or anywhere else in prose — read them from that
+config.** This section previously stated `a₀ ≈ 3.5736 Å, B ≈ 445 GPa` and told
+readers to use those values; both were superseded when the fit was corrected
+from a biased linear P(ε) to a 3rd-order Birch-Murnaghan on E(V), and this text
+was not updated. The config carries the current values under `bulk_reference`
+and the retired ones, with the reason they moved, under
+`bulk_reference.superseded`.
 
-For slab surface-energy and stress calculations, subtract strain-matched bulk references
-(same lateral strain as the slab) rather than the unstrained equilibrium reference alone.
+- Raw parsed data: `results/reference_90_720/reference_summary.{csv,json,md}`
+- Fitted parameters: `results/reference_90_720/bulk_fit_summary.{csv,json}` and `bulk_fit_report.md`
+
+For slab surface-energy and stress calculations, subtract strain-matched bulk
+references (same lateral strain as the slab) rather than the unstrained
+equilibrium reference alone.
 
 ## Surface stress: sigma (diagnostic) vs tau (primary)
 
@@ -31,90 +119,91 @@ The slab stress/strain pipeline is:
           ↓
     surface stress (tau, N/m)
           ↓
-    strain fitting (fit_slab_strain.py)
+    thickness extrapolation (fit_tau_infinity.py) -> tau_inf
           ↓
-    NV screening (nv_strain_model.py) / exact NV physics (nv_spin_strain.py)
+    particle model (particle_strain.py) / exact NV physics (nv_spin_strain.py)
 
-Quantum ESPRESSO reports `sigma_ij` averaged over the **entire periodic supercell**
-(slab + vacuum), so its magnitude depends on the arbitrary vacuum thickness chosen when
-building the cell. `analyze_slab_stress.py` converts this into the vacuum-independent 2D
-surface stress
+Quantum ESPRESSO reports `sigma_ij` averaged over the **entire periodic
+supercell** (slab + vacuum), so its magnitude depends on the arbitrary vacuum
+thickness chosen when building the cell. `analyze_slab_stress.py` converts this
+into the vacuum-independent 2D surface stress
 
     tau_ij = sigma_ij * Lz * 0.005   (Lz = cell height, Å; result in N/m)
 
-(0.005 = 0.1 GPa/kbar × 0.1 N/m per GPa·Å ÷ 2 surfaces). `tau` is the physically intrinsic
-surface quantity and is directly comparable across cells with different vacuum padding, or
-against surface-stress literature values — `sigma` is not.
+(0.005 = 0.1 GPa/kbar × 0.1 N/m per GPa·Å ÷ 2 surfaces). `tau` is the physically
+intrinsic surface quantity and is directly comparable across cells with
+different vacuum padding, or against surface-stress literature values — `sigma`
+is not.
 
-`fit_slab_strain.py` fits **both** `tau_mean(eps)` (primary — `slab_strain_fit_summary.md`'s
-"Surface stress fit" table, columns `tau_slope_n_per_m_per_eps`, `tau_intercept_n_per_m`,
-`zero_tau_strain`, `r2_tau_fit`) and `mean_sigma(eps)` (diagnostic — "Diagnostic QE stress
-fit" table, unchanged legacy columns `stress_slope_kbar_per_eps`, `zero_stress_epsilon`,
-etc.) independently, and explicitly checks that their zero-stress strains agree
-(`zero_strain_discrepancy`, warns above `--zero-strain-tolerance`, default 1e-10). Because
-`tau = sigma * Lz * 0.005` pointwise with `Lz` fixed within a strain series, this is a
-consistency check on the arithmetic/data, not a new physical prediction: **switching to tau
-changes units and physical interpretation, not the equilibrium (zero-stress) strain.**
-`nv_spin_strain.py` consumes that equilibrium strain directly and is unaffected by which of
-the two (mathematically equivalent) fits produced it.
+**Sign convention (CLAUDE.md section 2).** Positive `sigma` means the cell is
+COMPRESSED. `tau` inherits that sign, so **positive `tau` is compressive**, and
+equals *minus* the continuum surface stress `f` (for which positive is tensile).
+Verified against free 2D `vc-relax`: positive `tau` expanded the released cell
+on 6 of 6 axes. Consumers wanting `f` must negate — `particle_strain.load_taus`
+does this once, at the boundary.
 
-`nv_strain_model.py`'s screening risk scores remain sigma-based (see its report's Scoring
-Methodology section for why: cell height differs by orientation in this dataset, so
-switching the score basis to tau would rescale each orientation by a different factor,
-which could reorder rankings rather than just changing units) — `tau_mean_n_per_m` is still
-reported there for absolute, vacuum-independent comparison.
+`fit_slab_strain.py` fits both `tau_mean(eps)` (primary) and `mean_sigma(eps)`
+(diagnostic) independently and checks that their zero-stress strains agree.
+Because `tau = sigma * Lz * 0.005` pointwise with `Lz` fixed within a strain
+series, this is a consistency check on the arithmetic, not a new physical
+prediction: **switching to tau changes units and interpretation, not the
+equilibrium strain.**
 
 ## Elastic reference and the exact NV pipeline
 
-`config/reference_pbe_sssp.json` also carries an `elastic_tensor` block (C11, C12, C44,
-cubic symmetry, GPa) alongside `bulk_reference`. These two blocks have different
-provenance and must not be confused:
+`config/reference_pbe_sssp.json` also carries an `elastic_tensor` block (C11,
+C12, C44, cubic symmetry, GPa) alongside `bulk_reference`. These two blocks have
+different provenance and must not be confused:
 
-- **`bulk_reference`** (a0, B): fitted from this project's five-point hydrostatic PBE/SSSP
-  series. A hydrostatic fit determines only `B = (C11 + 2*C12) / 3`; it cannot separate
-  C11, C12, and C44.
-- **`elastic_tensor`** (C11, C12, C44): currently **literature-sourced**, not derived from
-  this project's DFT. `elastic_tensor.source_type` and `elastic_tensor.citation` record this
-  explicitly.
+- **`bulk_reference`** (a0, B): fitted from this project's hydrostatic PBE/SSSP
+  series. A hydrostatic fit determines only `B = (C11 + 2*C12)/3`; it cannot
+  separate C11, C12, and C44.
+- **`elastic_tensor`** (C11, C12, C44): currently **literature-sourced**, not
+  derived from this project's DFT. `elastic_tensor.source_type` and
+  `elastic_tensor.citation` record this explicitly.
 
-`elastic_reference.py` is the single validated loader for both blocks. It checks required
-fields/units/positivity, cubic mechanical stability (`C11 - C12 > 0`, `C11 + 2*C12 > 0`,
-`C44 > 0`), and reports the tensor-implied bulk modulus against the project's fitted B
-(warns, does not fail, above a configurable percent threshold).
+`elastic_reference.py` is the single validated loader for both blocks. It checks
+required fields, units, positivity, and cubic mechanical stability, and reports
+the tensor-implied bulk modulus against the project's fitted B.
 
-`nv_spin_strain.py` (the exact NV spin-strain Hamiltonian; `nv_strain_model.py` is a
-screening tool only) loads C11/C12/C44 through this interface by default
-(`--reference-config config/reference_pbe_sssp.json`). Precedence: explicit
-`--C11`/`--C12`/`--C44` CLI overrides > reference config > `--elastic-source legacy`
-(hardcoded literature fallback, requires an explicit flag and emits a warning). Every run
-writes `nv_predictions_meta.json` and an "Elastic reference" section in
-`nv_predictions_report.md` recording which source was used, so no output can be mistaken
-for a project-derived DFT tensor when it isn't one.
+`nv_spin_strain.py` (the exact NV spin-strain Hamiltonian; `nv_strain_model.py`
+is a screening tool only) reads C11/C12/C44 through that loader — including its
+`ElasticConstants` dataclass defaults, so no second copy of those constants
+exists in the codebase. Every run writes `nv_predictions_meta.json` and an
+"Elastic reference" section recording which source was used.
 
-`fit_bulk_reference.py --update-config config/reference_pbe_sssp.json` writes the newly
-fitted a0/B into that config (explicit flag; not run by default) without touching
-`elastic_tensor`.
+A future DFT elastic-tensor campaign would populate `elastic_tensor` with
+`source_type: "project_dft_fit"` through the same config and loader;
+`nv_spin_strain.py` would not need to change.
 
-A future DFT elastic-tensor campaign (independent hydrostatic/orthorhombic/monoclinic
-strain modes to separately determine C11, C12, C44 — see `PLAN_nv_strain_campaign.md`)
-would populate `elastic_tensor` with `source_type: "project_dft_fit"` through the same
-config and loader; `nv_spin_strain.py` would not need to change.
+## Physics notes
 
-**General Workflow for the Current Version:
+- **Symmetric slabs** (identical top and bottom terminations) are required for clean surface-stress measurements; asymmetric slabs introduce dipole artifacts and complicate interpretation of the stress tensor. `preflight.py` enforces this: an asymmetric structure without a dipole correction fails the gate.
+- **Surface stress** is extracted from the in-plane stress of a 2D-relaxed slab as *f*<sub>αβ</sub> = ½ · *L*<sub>z</sub> · σ<sub>αβ</sub> (1 kbar·Å ≈ 0.01 N/m), referenced to the DFT equilibrium lattice constant at the same cutoffs.
+- **Every result carries an epistemic level** (L0 exploratory → L3 publication) per CLAUDE.md section 4. Do not promote a result a level without the corresponding work existing.
 
-python3 slabgen.py <motif> --layers 6 --a0 3.573641 --format qe --out runs/<name>/pw.in
+## Development
 
-python3 run_queue.py --dry-run --only <name> --pseudo-source <pseudo_source>
-python3 run_queue.py --run --only <name> --pseudo-source <pseudo_source>
+This package was developed iteratively with **Claude (Anthropic)** as an active
+co-developer: implementation briefs are handed to Claude Code for well-scoped
+features, and the accompanying DFT campaign pipeline uses the Anthropic API for
+automated triage of failed HPC jobs. The repository history reflects that
+workflow.
 
-python3 parse_slab.py
+Run the test suite with `python3 -m pytest tests/ -q`.
 
-python3 make_slab_stress_scf.py
-python3 run_queue.py --run --only <name>_stress_scf --pseudo-source runs/<name>
+## Citation
 
-python3 update_slab_analysis.py
+A publication describing the termination library and the surface-stress
+screening campaign is in preparation. Until then, please cite this repository:
 
-python3 make_slab_strain_series.py --only <name>_stress_scf
-python3 run_queue.py --run --only <name>_strain_biaxial --pseudo-source runs/<name> --max-jobs 5
+> Owen Group, Columbia University. *slab-generator: diamond surface slab construction for periodic DFT.* https://github.com/JOwenLab/slab-generator (2026).
 
-python3 update_slab_analysis.py
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+## Contact
+
+Jonathan S. Owen — jso2115@columbia.edu
+Department of Chemistry, Columbia University

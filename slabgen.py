@@ -20,6 +20,8 @@ Face/thickness constraints enforced:
     on both faces run parallel (dangling-bond axis alternates per layer).
 """
 import argparse
+import json
+import os
 import sys
 import numpy as np
 import yaml
@@ -301,8 +303,38 @@ QE_PSEUDO = {"C": ("12.011", "C.pbe-n-kjpaw_psl.1.0.0.UPF"),
              "F": ("18.998", "F.pbe-n-kjpaw_psl.1.0.0.UPF")}
 
 
+DEFAULT_REFERENCE_CONFIG = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "config", "reference_pbe_sssp.json")
+
+_CUTOFF_CACHE = {}
+
+
+def production_cutoffs(config_path=DEFAULT_REFERENCE_CONFIG):
+    """
+    (ecutwfc, ecutrho) from the reference config's qe_settings block.
+
+    These were hardcoded at 60/480 Ry until 2026-08 while the production
+    standard moved to 90/720. Nothing failed: every newly generated slab simply
+    came out at the unconverged cutoff, and the cutoff campaign had already
+    measured what that costs -- the mean in-plane stress drifts by 2.2-2.8 kbar
+    between 60 and 120 Ry, which is the same size as the surface-stress
+    differences this project is trying to resolve.
+
+    Reading the config means the generator and the campaign cannot disagree.
+    A missing or malformed config is a hard error rather than a silent fallback
+    to the old literals, because a silent fallback is the failure being removed.
+    """
+    key = os.path.abspath(config_path)
+    if key not in _CUTOFF_CACHE:
+        with open(config_path) as fh:
+            qe = json.load(fh)["qe_settings"]
+        _CUTOFF_CACHE[key] = (float(qe["ecutwfc"]), float(qe["ecutrho"]))
+    return _CUTOFF_CACHE[key]
+
+
 def to_qe(slab, vacuum, comment, fix_bottom_layers=2, symmetric=False,
-          relax_mode="ions"):
+          relax_mode="ions", config_path=DEFAULT_REFERENCE_CONFIG):
     """Quantum ESPRESSO pw.x input for a slab relaxation.
 
     relax_mode='ions'  : fixed-cell ionic relax (original behavior)
@@ -386,12 +418,13 @@ def to_qe(slab, vacuum, comment, fix_bottom_layers=2, symmetric=False,
     L += ctrl
 
     # --- &SYSTEM ---
+    _ecutwfc, _ecutrho = production_cutoffs(config_path)
     sys_block = ["&SYSTEM",
                  "  ibrav    = 0",
                  f"  nat      = {slab.n}",
                  f"  ntyp     = {len(species)}",
-                 "  ecutwfc  = 60.0",
-                 "  ecutrho  = 480.0",
+                 f"  ecutwfc  = {_ecutwfc:g}",
+                 f"  ecutrho  = {_ecutrho:g}",
                  "  occupations = 'smearing'",
                  "  smearing    = 'mv'",
                  "  degauss     = 0.01"]

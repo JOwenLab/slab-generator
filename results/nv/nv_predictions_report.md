@@ -5,11 +5,11 @@ Spin-strain parameters: udvarhelyi2018_dft (Udvarhelyi et al., PRB 98, 075201 (2
 ## Elastic reference
 
 **Lattice constant:**
-  3.573641 Å
+  3.572997 Å
   source: project PBE/SSSP bulk fit
 
 **Hydrostatic bulk modulus:**
-  445.1 GPa
+  433.7 GPa
   source: project PBE/SSSP bulk fit
 
 **Cubic stiffness tensor:**
@@ -22,7 +22,7 @@ Spin-strain parameters: udvarhelyi2018_dft (Udvarhelyi et al., PRB 98, 075201 (2
   442.0 GPa
 
 **Difference from project hydrostatic fit:**
-  -3.1 GPa (-0.7%)
+  +8.3 GPa (+1.9%)
 
 **Status:**
   mixed-source elastic reference; full DFT Cij not yet computed

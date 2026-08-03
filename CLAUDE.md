@@ -122,10 +122,18 @@ The physical chain being modeled:
 Each arrow is a separate inferential step with its own validity conditions.
 Do not collapse them in reasoning or in prose.
 
-**Bulk reference (mature).** Five-point hydrostatic EOS, PBE/SSSP-C. Fitted
-a0 = 3.573641 Angstrom, B = 445.116 GPa. This is the most trustworthy artifact in
-the project and the authoritative source for lattice constant. Live in
-`config/reference_pbe_sssp.json`; read it rather than hardcoding.
+**Bulk reference (mature).** Five-point hydrostatic EOS, PBE/SSSP-C, fitted with
+a 3rd-order Birch-Murnaghan on E(V) and cross-checked against a quadratic
+P(epsilon). This is the most trustworthy artifact in the project and the
+authoritative source for lattice constant. Live in
+`config/reference_pbe_sssp.json`; **read it rather than hardcoding** — including
+here. No number is quoted in this paragraph on purpose: the previous version
+stated a0 = 3.573641 Angstrom and B = 445.116 GPa as authoritative, and those
+values were superseded in 2026-08 without this text being updated, so the
+governing document spent several commits telling readers to trust the figure the
+campaign had just replaced while instructing them not to hardcode it. The
+current values, and the superseded ones with the reason they moved, are both in
+the config under `bulk_reference` and `bulk_reference.superseded`.
 
 **Slab stress (screening).** QE stress on a relaxed slab is the stress of the
 **whole slab**, including the elastic response of the carbon interior. It is not

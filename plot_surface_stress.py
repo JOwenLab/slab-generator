@@ -70,7 +70,11 @@ AA = figstyle.angstrom()
 AA_TXT = "A"
 PCT = r"\%" if USE_TEX else "%"
 
-DEFAULT_OUTDIR = Path.home() / "Documents" / "diamonds" / "surface-stress"
+# In-repo, so the figures are committed alongside the data they came
+# from. This used to default to ~/Documents, which meant the figures
+# existed only on one machine: anyone cloning the repo, and anyone
+# reading it who will not run a regeneration script, saw none of them.
+DEFAULT_OUTDIR = Path(__file__).resolve().parent / "results" / "figures" / "surface-stress"
 PRODUCTION_DIR = Path("results/production")
 TAU_INF_CSV = PRODUCTION_DIR / "tau_infinity.csv"
 CONVERGENCE_CSV = Path("results/convergence/convergence_summary.csv")

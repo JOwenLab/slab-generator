@@ -1,0 +1,16 @@
+# slab-generator runtime dependencies.
+#
+# Deliberately short. Everything else in this repository is standard library:
+# the fitting code (fit_bulk_reference, fit_tau_infinity, surface_energy) is
+# pure Python by design so it runs unchanged on the cluster login node, which
+# has an older interpreter and no scientific stack.
+#
+# Verified against Python 3.9.6. There is no 3.10-only syntax anywhere in the
+# repo; a previous README claimed Python >= 3.10 and ASE, and both were wrong
+# (ASE is not imported by any module).
+
+numpy>=1.20
+matplotlib>=3.4        # figures only; every analysis module runs without it
+
+# Test runner
+pytest>=7.0

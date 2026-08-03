@@ -129,22 +129,24 @@ Ranking and channel separation are the defensible outputs here; the absolute val
 | 6 | Thicker slabs (8–12 layers) for H-(100) | Converge surface stress with respect to slab thickness |
 | 7 | OH-terminated or bare reconstructed surfaces | Extend screening to other relevant terminations |
 
-## 8. Calibration Fields (for future use)
+## 8. Spin-Strain Coupling Constants Used In This Run
 
-The fields below are reserved for future calibration once explicit NV supercell calculations or experimental resonance data become available:
+These are the values that produced every GHz number in this report and in `nv_strain_summary.{csv,json}`. They are **provisional** (CLAUDE.md section 3): order-of-magnitude literature figures, not calibrated for this system, and not derived from any calculation in this repository.
 
 ```json
 {
-  "d_shift_ghz_per_strain": null,
-  "e_split_ghz_per_strain": null,
-  "calibration_source": null,
-  "calibration_date": null
+  "d_shift_ghz_per_strain": 13.0,
+  "e_split_ghz_per_strain": 5.0,
+  "source": "provisional literature order-of-magnitude values; see CLAUDE.md section 3",
+  "calibrated": false
 }
 ```
 
-Pass these as CLI arguments to activate GHz estimates:
+Regenerate this exact output with:
 ```
 python3 nv_strain_model.py \
     --d-shift-ghz-per-strain 13.0 \
     --e-splitting-ghz-per-strain 5.0
 ```
+
+Calibration against explicit NV supercell calculations or experimental resonance data has not been done.

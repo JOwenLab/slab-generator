@@ -52,6 +52,8 @@ from pathlib import Path
 
 import numpy as np
 
+import parse_convergence
+
 # ── Physical bounds ───────────────────────────────────────────────────────────
 # Bonded if within the cutoff. C-C is 1.545 in bulk diamond and ~1.60 across a
 # (100) 2x1 dimer, so 1.85 separates bonded from the 2.53 second shell.
@@ -252,6 +254,65 @@ class Structure:
         return unmatched, worst
 
 
+BOHR_TO_ANGSTROM = 0.529177210903
+
+# QE position units this gate understands. `alat` is deliberately absent: it
+# scales by celldm(1)/A, which these inputs write as ibrav=0 with an explicit
+# CELL_PARAMETERS block and no celldm, so there is nothing to scale by. Refusing
+# is correct there; silently treating alat as angstrom would misplace every atom.
+_POSITION_UNITS = ("angstrom", "bohr", "crystal")
+
+
+def _position_unit(header_line, directory):
+    """
+    The unit declared on an ATOMIC_POSITIONS line.
+
+    QE writes it as `ATOMIC_POSITIONS crystal` or `ATOMIC_POSITIONS (crystal)`;
+    both spellings appear in this repository.
+    """
+    # Token match, not substring. `crystal_sg` CONTAINS `crystal` but is a
+    # different unit (space-group generating positions, expanded by symmetry),
+    # so a substring test silently accepts it as fractional and reads a partial
+    # asymmetric unit as though it were the whole cell.
+    tail = re.sub(r"^\s*ATOMIC_POSITIONS\s*", "", header_line.strip(),
+                  flags=re.IGNORECASE)
+    token = tail.strip().strip("(){}[]").strip().lower()
+    if token in _POSITION_UNITS:
+        return token
+    raise PreflightError(
+        f"{directory}: unit {token or '(none)'!r} in {header_line.strip()!r} is "
+        f"not one this gate can convert. Understood units are "
+        f"{', '.join(_POSITION_UNITS)}. Refusing to guess: a crystal block read "
+        "as angstrom, an alat block read as either, or a crystal_sg block read "
+        "as crystal all place atoms somewhere they are not.")
+
+
+def _to_cartesian_angstrom(positions, unit, cell):
+    """
+    Positions in Angstrom, converting from whichever unit QE declared.
+
+    This exists because the gate previously accepted angstrom only and raised on
+    everything else. That was safe but left a hole exactly where it mattered
+    least acceptably: all 15 `vcrelax~*` runs and `final~C111_30L_vc` write
+    `crystal`, and those are the runs that settled the tau sign convention --
+    the most scrutinised result in the project sat outside its own structural
+    gate.
+
+    crystal -> cartesian is r = f . A with A's ROWS the lattice vectors, which
+    is how CELL_PARAMETERS is stored here. Getting that transpose backwards
+    would not raise; it would silently shear every non-orthogonal cell, so the
+    (111) hexagonal cells are the ones to check a change against.
+    """
+    arr = np.asarray(positions, dtype=float)
+    if unit == "angstrom":
+        return arr
+    if unit == "bohr":
+        return arr * BOHR_TO_ANGSTROM
+    if unit == "crystal":
+        return arr @ np.asarray(cell, dtype=float)
+    raise PreflightError(f"unhandled position unit {unit!r}")
+
+
 def _parse_namelist(text, name):
     m = re.search(rf"&{name}(.*?)^\s*/", text, re.IGNORECASE | re.DOTALL | re.MULTILINE)
     if not m:
@@ -287,13 +348,10 @@ def load_structure(directory, filename="pw.in"):
     if cell is None:
         raise PreflightError(f"{directory}: no CELL_PARAMETERS block")
 
-    species, positions = [], []
+    species, positions, pos_unit = [], [], None
     for i, line in enumerate(lines):
         if line.strip().upper().startswith("ATOMIC_POSITIONS"):
-            if "angstrom" not in line.lower():
-                raise PreflightError(
-                    f"{directory}: ATOMIC_POSITIONS unit in {line.strip()!r} is "
-                    "not angstrom; refusing to guess")
+            pos_unit = _position_unit(line, directory)
             for row in lines[i + 1:]:
                 parts = row.split()
                 if len(parts) < 4 or row.strip().startswith("!"):
@@ -307,6 +365,8 @@ def load_structure(directory, filename="pw.in"):
             break
     if not species:
         raise PreflightError(f"{directory}: no ATOMIC_POSITIONS block")
+
+    positions = _to_cartesian_angstrom(positions, pos_unit, cell)
 
     pseudos = {}
     for i, line in enumerate(lines):
@@ -498,22 +558,29 @@ def check_name_matches_geometry(s):
     return bad
 
 
-def _count_carbon_layers(s, tol=0.25):
+def _count_carbon_layers(s):
     """
-    Distinct carbon z-levels.
+    Number of distinct carbon layers, delegated to parse_convergence.
 
-    tol must exceed the (100) 2x1 dimer buckling (~0.08 A) and stay below the
-    (111) intra-bilayer spacing (~0.49 A), or (111) slabs report half their
-    true layer count.
+    DELIBERATELY NOT REIMPLEMENTED HERE. This gate previously carried its own
+    copy that clustered on a fixed 0.25 A tolerance, which is not sufficient
+    and cannot be made sufficient: (100)'s 0.292 A intra-layer buckling is
+    wider than (111)'s 0.488 A inter-layer split is narrow, so no single
+    distance classifies both. The consequence was 16 false failures across
+    results/slabs/, every one reporting a 6-layer (100) slab as 8 layers.
+
+    parse_convergence.count_layers was fixed by adding a counting invariant on
+    top of the clustering (every layer of a slab holds the same number of
+    symmetry-equivalent sites, so unequal cluster populations prove the
+    clustering split a layer). That fix did not reach this file, which is the
+    whole reason the two drifted. Importing it means they cannot drift again:
+    there is one implementation and one set of tests for it.
+
+    A gate that emits false failures on good structures is worse than no gate,
+    because the failures get waived and then a real one is waived with them.
     """
-    z = sorted(float(v) for v in s.carbon_z)
-    if not z:
-        return 0
-    layers = 1
-    for a, b in zip(z, z[1:]):
-        if b - a > tol:
-            layers += 1
-    return layers
+    return parse_convergence.count_layers(
+        [float(v) for v in s.carbon_z]) or 0
 
 
 DIPOLE_KEYS = ("dipfield", "tefield", "assume_isolated")

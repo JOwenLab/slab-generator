@@ -1172,7 +1172,7 @@ def sweep_rows_for_csv(rows) -> list:
 # ================================================================ mu_H scan
 # The equilibrium shape is a function of the hydrogen chemical potential, and
 # so therefore is the interior stress it produces. Because the (100) facets
-# carry a net COMPRESSIVE surface stress while (111) carries a tensile one,
+# carry a net TENSILE surface stress while (111) carries a compressive one,
 # growing the {100} fraction can drive the interior pressure through zero. That
 # sign change is the experimentally interesting prediction: it says an ODMR
 # shift should INVERT under annealing, which is a much sharper claim than any
@@ -1354,9 +1354,10 @@ def render_scan_report(scan: dict, meta: dict) -> str:
          "The equilibrium (Wulff) habit is a function of the hydrogen chemical "
          "potential. Lowering mu_H raises every surface energy, but at "
          "facet-dependent rates, so the {100} area fraction grows. (100)-H "
-         "carries a net COMPRESSIVE surface stress while (111)-H carries a "
-         "tensile one, so growing the {100} fraction drives the particle "
-         "interior from tension towards compression -- and through zero.", "",
+         "carries a net TENSILE surface stress (f = +2.0 N/m) while (111)-H "
+         "carries a compressive one (f = -0.48 N/m), so growing the {100} "
+         "fraction drives the particle interior from tension towards "
+         "compression -- and through zero.", "",
          "At the crossing the ODMR shift changes sign: Delta D passes through "
          "zero and reverses. That is a far sharper experimental signature than "
          "any single magnitude this model produces, because it does not depend "
