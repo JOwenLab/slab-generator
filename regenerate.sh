@@ -110,6 +110,15 @@ python3 nv_strain_model.py \
     --d-shift-ghz-per-strain 13 \
     --e-splitting-ghz-per-strain 5
 
+say "nv_local_strain.py -> results/production/nv_local_strain_*"
+# Position-resolved interior strain. Needs scikit-fem; skipped rather than
+# failed if it is absent, since every other artifact is independent of it.
+if python3 -c "import skfem" 2>/dev/null; then
+    python3 nv_local_strain.py --refine 3 --depths 0.5 1.0 1.5
+else
+    echo "SKIPPED: scikit-fem not installed (pip install -r requirements.txt)"
+fi
+
 # -------------------------------------------------------------- figures
 say "plot_convergence.py + plot_surface_stress.py -> results/figures/"
 python3 plot_convergence.py

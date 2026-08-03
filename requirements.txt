@@ -11,6 +11,10 @@
 
 numpy>=1.20
 matplotlib>=3.4        # figures only; every analysis module runs without it
+scikit-fem>=8.0        # nv_local_strain.py only (position-resolved elasticity);
+                       # every other module runs without it, and its tests skip
+                       # cleanly when it is absent
+scipy>=1.7             # convex hulls and sparse linear algebra for the above
 
 # Test runner
 pytest>=7.0
