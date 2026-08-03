@@ -110,10 +110,38 @@ python3 nv_strain_model.py \
     --d-shift-ghz-per-strain 13 \
     --e-splitting-ghz-per-strain 5
 
+say "nv_local_strain.py -> results/production/nv_local_strain_*"
+# Position-resolved interior strain. Needs scikit-fem; skipped rather than
+# failed if it is absent, since every other artifact is independent of it.
+if python3 -c "import skfem" 2>/dev/null; then
+    python3 nv_local_strain.py --refine 3 --depths 0.5 1.0 1.5
+else
+    echo "SKIPPED: scikit-fem not installed (pip install -r requirements.txt)"
+fi
+
 # -------------------------------------------------------------- figures
 say "plot_convergence.py + plot_surface_stress.py -> results/figures/"
 python3 plot_convergence.py
+# N1 and N2 are retired here, not merely unbuilt: this run also DELETES their
+# stale outputs from results/figures/surface-stress/. N1 is absorbed into F1(b)
+# below; N2 asserted that the (100) anisotropy drives the E channel, which
+# nv_local_strain.py contradicts.
 python3 plot_surface_stress.py
+
+say "plot_h_results.py -> results/figures/h-results/ (F1-F5)"
+# The H-terminated result set. F1(a) is a deliberately empty slot: rendering
+# the relaxed structures needs VESTA or OVITO and neither is a dependency of
+# this repository, so the panel is marked rather than faked. F2's
+# dehydrogenation ceiling is likewise not drawn -- it needs a bare-facet ladder
+# that is not committed here. Both are reported as GAPs on stdout.
+python3 plot_h_results.py
+
+# --------------------------------------------------------------- tables
+say "make_tables.py -> results/tables/ (T1-T4, markdown + booktabs)"
+# T1's convergence column is read from plot_convergence's own reductions, so
+# the table cannot disagree with the figures. T3's dehydrogenation-ceiling
+# column is NOT COMPUTED for the same missing-ladder reason as F2.
+python3 make_tables.py
 
 # ----------------------------------------------------------------- gate
 say "preflight.py -> structural gate (advisory here, not a rebuild)"

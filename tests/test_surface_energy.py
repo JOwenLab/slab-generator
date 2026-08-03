@@ -427,3 +427,649 @@ def test_tp_map_is_written_and_labels_its_provenance(derived):
     # The dominant caveat must be in the output, not just a comment.
     assert "remain the stable termination" in report
     assert "graphitize" in report
+
+
+# ================================================== mu_C drift: reject, not warn
+def _ladder_from_per_slab_gammas(surface, gammas, area, ref, n_H=0,
+                                 per_layer=1, match_ref=False, nspin=None):
+    """A ladder whose per-slab gamma (with the BULK mu_C) is exactly `gammas`.
+
+    Inverts gamma = [E - N_C*mu_C - N_H*mu_H] / 2A, so a ladder that is NOT on
+    a single straight line can be written down directly -- which is the whole
+    point: an unconverged thin end is exactly a ladder that is not.
+    """
+    out = []
+    for n, g in sorted(gammas.items()):
+        n_C = n * per_layer
+        E = (g * 2 * area / se.RY_PER_A2_TO_J_PER_M2
+             + n_C * ref.mu_c_bulk_ry + n_H * ref.mu_h_rich_ry)
+        out.append(se.SlabEnergy(
+            surface=surface, layers=n, run=f"bare~{surface}_{n}L", n_C=n_C,
+            n_H=n_H, area_angstrom2=area, energy_ry=E,
+            pseudo_C=ref.pseudo_C if match_ref else "c.upf",
+            pseudo_H=ref.pseudo_H if match_ref else "h.upf",
+            ecutwfc=ref.ecutwfc if match_ref else 90.0,
+            ecutrho=ref.ecutrho if match_ref else 720.0,
+            nspin_declared=(nspin or {}).get(n, 1),
+            nspin_effective=(nspin or {}).get(n, 1),
+            total_magnetization_bohr=(
+                2.0 if (nspin or {}).get(n) == 2 else None)))
+    return out
+
+
+# A SYNTHETIC ladder with the SHAPE the bare (111) campaign showed: the two
+# thinnest rungs sit outside the asymptotic regime because the two bare faces
+# still interact, and the rest sit on a plateau.
+#
+# The plateau value is a fixture parameter, not a physical expectation. The
+# real bare (111) energies are non-spin-polarised and therefore provisional
+# (see the spin tests below), so no test here asserts a J/m^2 value for
+# gamma_bare, a binding facet, or a delta_mu ceiling. What is asserted is that
+# the machinery recovers whatever plateau it was handed, and refuses ladders it
+# should refuse.
+BARE_111_AREA = 5.5280
+BARE_111_PLATEAU = 5.67
+BARE_111_THIN_END = {6: -0.81, 8: -1.05}
+
+
+def _bare_ladder_gammas(plateau=BARE_111_PLATEAU):
+    """Unconverged 6L/8L, then a plateau at `plateau` for 10/12/16L."""
+    return {**BARE_111_THIN_END,
+            10: plateau + 0.01, 12: plateau + 0.01, 16: plateau}
+
+
+def _bare_111(ref, exclude, reason="test", plateau=BARE_111_PLATEAU, **kw):
+    pts = _ladder_from_per_slab_gammas(
+        "C111", _bare_ladder_gammas(plateau), BARE_111_AREA, ref, **kw)
+    return se.fit_surface_energy("C111", pts, ref, exclude, reason)
+
+
+def test_gamma_bias_from_mu_c_drift_is_an_exact_identity():
+    """The rejection criterion is not a heuristic: the bias is exactly the gap
+    between the Boettger gamma and the mean per-slab gamma with the bulk mu_C."""
+    ref = _fake_ref()
+    for exclude in ([], [6], [6, 8]):
+        f = _bare_111(ref, exclude)
+        mean_per_slab = sum(f.per_slab_gamma_j_m2[n] for n in f.layers_used) \
+            / len(f.layers_used)
+        assert f.gamma_bias_from_mu_c_drift_j_m2 == pytest.approx(
+            f.gamma_h_rich_j_m2 - mean_per_slab, abs=1e-9), exclude
+
+
+def test_bare_111_with_the_thin_end_left_in_is_rejected_not_warned():
+    """The failure this guard exists for. The unconverged 6L/8L points drag the
+    fitted slope tens of mRy off bulk, which does not scatter gamma -- it moves
+    it by many J/m^2, and to the WRONG SIGN."""
+    ref = _fake_ref()
+    bad = _bare_111(ref, [6])
+    assert abs(bad.mu_c_drift_mry) > 10.0
+    assert bad.gamma_h_rich_j_m2 < 0            # the artifact: negative gamma_bare
+    assert abs(bad.gamma_bias_from_mu_c_drift_j_m2) > 1.0
+
+    with pytest.raises(se.SurfaceEnergyError) as exc:
+        se.grade_fits([bad], se.DEFAULT_MU_C_TOL_MRY,
+                      se.DEFAULT_MU_C_REJECT_J_M2, "--bare-exclude-layers-for")
+    msg = str(exc.value)
+    assert "mu_C" in msg
+    assert "biases gamma" in msg
+    assert f"{se.DEFAULT_MU_C_REJECT_J_M2:.3f} J/m^2" in msg
+    # It must say which thicknesses were in the fit and which were dropped.
+    assert "8L" in msg and "16L" in msg
+    assert "Excluded so far: 6L" in msg
+    assert bad.rejected and bad.epistemic_level == "REJECTED"
+
+
+def test_rejection_message_names_the_thicknesses_to_drop():
+    """A rejection the user cannot act on is only marginally better than a
+    warning. The per-slab gammas already identify the culprits."""
+    ref = _fake_ref()
+    with pytest.raises(se.SurfaceEnergyError) as exc:
+        se.grade_fits([_bare_111(ref, [])], se.DEFAULT_MU_C_TOL_MRY,
+                      se.DEFAULT_MU_C_REJECT_J_M2, "--bare-exclude-layers-for")
+    assert "--bare-exclude-layers-for C111=6,8" in str(exc.value)
+
+
+@pytest.mark.parametrize("plateau", [1.5, 5.67, 9.0])
+def test_dropping_the_unconverged_thin_end_recovers_the_plateau(plateau):
+    """Refit over the asymptotic rungs only: the slope comes back to bulk and
+    gamma comes back to whatever plateau the ladder was built on.
+
+    Parametrised deliberately. The assertion is that the machinery recovers the
+    plateau it was handed -- not that bare (111) is any particular number. The
+    real bare energies are non-spin-polarised and provisional."""
+    ref = _fake_ref()
+    good = _bare_111(ref, [6, 8], plateau=plateau)
+    assert good.layers_used == [10, 12, 16]
+    assert abs(good.mu_c_drift_mry) < 0.2
+    # abs=0.05 because the fixture's plateau carries a 0.01 J/m^2 wobble, as
+    # the real one does; a perfectly flat plateau would recover exactly.
+    assert good.gamma_h_rich_j_m2 == pytest.approx(plateau, abs=0.05)
+    # The residual wobble still trips the mRy warning tolerance and downgrades
+    # to L1 -- which is the point of having two thresholds. It is nowhere near
+    # the rejection budget, so the fit survives and is reported.
+    se.grade_fits([good], se.DEFAULT_MU_C_TOL_MRY, se.DEFAULT_MU_C_REJECT_J_M2)
+    assert not good.rejected
+    assert abs(good.gamma_bias_from_mu_c_drift_j_m2) < se.DEFAULT_MU_C_REJECT_J_M2
+    # The contaminated fit does not merely differ from this by noise: it lands
+    # on the other side of zero, which is what made it bind as a ceiling.
+    bad = _bare_111(ref, [6], plateau=plateau)
+    assert bad.gamma_h_rich_j_m2 < 0 < good.gamma_h_rich_j_m2
+
+
+def test_a_negative_gamma_bare_would_have_bound_the_ceiling():
+    """Why the bad fit is worse than no fit: it does not merely add noise to
+    the ceiling, it becomes the binding one and drags the bound negative."""
+    h = _fit_with("C111", -0.9761, 2.8983)
+    bad_bare = _fit_with("C111", -3.735, 0.0)
+    good_bare = _fit_with("C111", +5.67, 0.0)
+    for bare in (bad_bare, good_bare):
+        bare.n_H = 0
+    bad = se.dehydrogenation_bound([h], [bad_bare])
+    good = se.dehydrogenation_bound([h], [good_bare])
+    assert bad["delta_mu_max_ev"] < 0        # "already dehydrogenated at H-rich"
+    assert good["delta_mu_max_ev"] > 2.0
+    # ... and the two differ by far more than any margin downstream cares about.
+    assert good["delta_mu_max_ev"] - bad["delta_mu_max_ev"] > 3.0
+
+
+def test_a_rejected_bare_fit_can_never_reach_the_ceiling():
+    """Silently dropping a rejected variant would raise the minimum over the
+    survivors, making the ceiling too PERMISSIVE -- the one direction of error
+    this bound must not fail in."""
+    f = _fit_with("C111", -3.735, 0.0)
+    f.n_H = 0
+    f.rejected = True
+    f.reject_reason = "mu_C drift"
+    with pytest.raises(se.SurfaceEnergyError, match="rejected fit"):
+        se.lowest_bare_gamma([f])
+
+
+def test_a_loose_budget_still_catches_the_bare_111_failure():
+    """The threshold is not balanced on a knife edge: the production ladders
+    sit ~3 orders of magnitude below the failure."""
+    ref = _fake_ref()
+    bad = _bare_111(ref, [6])
+    for budget in (0.1, 1.0):
+        bad.rejected = False
+        with pytest.raises(se.SurfaceEnergyError):
+            se.grade_fits([bad], se.DEFAULT_MU_C_TOL_MRY, budget)
+
+
+# ============================================== per-surface layer exclusion
+def test_parse_layer_exclusions_round_trips():
+    assert se.parse_layer_exclusions(["C111=6,8", "C100=6"]) == {
+        "C111": [6, 8], "C100": [6]}
+    assert se.parse_layer_exclusions(["C111=6L,8L"]) == {"C111": [6, 8]}
+    assert se.parse_layer_exclusions(["C110="]) == {"C110": []}
+    assert se.parse_layer_exclusions([]) == {}
+    assert se.parse_layer_exclusions(None) == {}
+
+
+def test_parse_layer_exclusions_refuses_ambiguity():
+    with pytest.raises(se.SurfaceEnergyError, match="SURFACE=N"):
+        se.parse_layer_exclusions(["C111"])
+    with pytest.raises(se.SurfaceEnergyError, match="not a layer count"):
+        se.parse_layer_exclusions(["C111=six"])
+    with pytest.raises(se.SurfaceEnergyError, match="twice"):
+        se.parse_layer_exclusions(["C111=6", "C111=8"])
+
+
+def test_per_surface_exclusion_overrides_the_default_and_does_not_leak():
+    per = {"C111": [6, 8]}
+    layers, why = se.resolve_exclusions("C111", [6], per)
+    assert layers == [6, 8] and "per-surface" in why and "C111" in why
+    # A surface with no override keeps the campaign default, unchanged.
+    layers, why = se.resolve_exclusions("C110", [6], per)
+    assert layers == [6] and "default" in why
+    # And an empty override really means "keep everything", not "use default".
+    layers, why = se.resolve_exclusions("C110", [6], {"C110": []})
+    assert layers == []
+
+
+def test_a_misdirected_exclusion_is_refused_not_ignored():
+    """Excluding a thickness the ladder does not have leaves the bad point in
+    the fit while the report claims it was dropped."""
+    ref = _fake_ref()
+    pts = _ladder_from_per_slab_gammas("C111", _bare_ladder_gammas(),
+                                       BARE_111_AREA, ref)
+    with pytest.raises(se.SurfaceEnergyError, match="which the ladder does not"):
+        se.fit_surface_energy("C111", pts, ref, [7])
+
+
+def test_exclusion_reason_travels_with_the_fit():
+    ref = _fake_ref()
+    f = _bare_111(ref, [6, 8], "explicit per-surface exclusion for C111")
+    assert f.layers_excluded == [6, 8]
+    assert f.layers_used == [10, 12, 16]
+    assert "C111" in f.exclusion_reason
+
+
+@production
+def test_production_exclusions_are_reported_per_surface(derived):
+    result, out = derived
+    meta = result["meta"]
+    assert set(meta["exclusions"]) == {"C100", "C110", "C111"}
+    for s, e in meta["exclusions"].items():
+        assert e["excluded"] == [6]
+        assert e["used"] == [8, 10, 12, 16]
+        assert e["reason"]
+    report = (out / "surface_energy_report.md").read_text()
+    assert "Which thicknesses entered each fit" in report
+    assert "gamma bias from mu_C drift" in report
+    cfg = json.loads((out / "surface_energies_h.json").read_text())
+    per = cfg["method"]["excluded_layers_per_surface"]
+    assert per["C100"]["excluded"] == [6] and per["C100"]["used"] == [8, 10, 12, 16]
+
+
+@production
+def test_production_h_ladders_are_warned_about_but_never_rejected(derived):
+    """(100) drifts enough to lose L2 and nowhere near enough to be rejected.
+    If this ever flips, the budget moved, not the physics."""
+    result, _ = derived
+    for f in result["fits"]:
+        assert not f.rejected
+        assert abs(f.gamma_bias_from_mu_c_drift_j_m2) < se.DEFAULT_MU_C_REJECT_J_M2
+    fits = {f.surface: f for f in result["fits"]}
+    # The bias is what the budget is spent on; (100) uses about a tenth of it.
+    assert fits["C100"].gamma_bias_from_mu_c_drift_j_m2 == pytest.approx(
+        0.0103, abs=5e-4)
+    for s in ("C110", "C111"):
+        assert abs(fits[s].gamma_bias_from_mu_c_drift_j_m2) < 0.001
+
+
+@production
+def test_run_wires_the_bare_ladder_through_with_its_own_exclusions(
+        tmp_path, monkeypatch):
+    """End to end on the path that failed: a bare (111) ladder whose thin end
+    is unconverged must be rejected under the H ladder's policy, and must give
+    a physical ceiling once its own policy drops 6L and 8L."""
+    ref_probe = se.load_references(REFERENCE)
+    bare_dir = tmp_path / "bare"
+    bare_dir.mkdir()
+
+    real_loader = se.load_slab_energies
+
+    def fake_loader(runs_dir, prefix):
+        if str(runs_dir) != str(bare_dir):
+            return real_loader(runs_dir, prefix)
+        return {"C111": _ladder_from_per_slab_gammas(
+            "C111", _bare_ladder_gammas(), BARE_111_AREA, ref_probe,
+            match_ref=True)}
+
+    monkeypatch.setattr(se, "load_slab_energies", fake_loader)
+
+    def go(**kw):
+        return se.run(PRODUCTION, REFERENCE, tmp_path / "out",
+                      se.DEFAULT_PREFIX, [6], (0.0, 3.0), 21,
+                      se.DEFAULT_MU_C_TOL_MRY, bare_runs_dir=bare_dir, **kw)
+
+    # Inheriting the H ladder's policy (drop 6L only) leaves 8L in and the
+    # bare fit is rejected rather than quietly becoming the binding ceiling.
+    with pytest.raises(se.SurfaceEnergyError, match="biases gamma"):
+        go()
+
+    result = go(bare_exclude_layers_for={"C111": [6, 8]})
+    bound = result["dehydrogenation_bound"]
+    assert bound["available"]
+    e = bound["per_surface"]["C111"]
+    assert e["bare_layers_excluded"] == [6, 8]
+    assert e["bare_layers_used"] == [10, 12, 16]
+    # The ceiling is the algebra applied to whatever gamma_bare came out --
+    # no J/m^2 or eV value is asserted, because the bare energies behind the
+    # real campaign are non-spin-polarised and provisional.
+    assert e["delta_mu_max_ev"] == pytest.approx(
+        (e["gamma_bare_j_m2"] - e["gamma_h_rich_j_m2"]) / e["slope_j_m2_per_ev"])
+    # The H ladders keep their own policy; the bare override does not leak.
+    assert all(f.layers_excluded == [6] for f in result["fits"])
+    assert result["meta"]["bare_exclusions"]["C111"]["excluded"] == [6, 8]
+
+    report = (tmp_path / "out" / "surface_energy_report.md").read_text()
+    assert "Binding facet C111" in report
+    assert "10L 12L 16L" in report
+    # The "unbounded above" caveat must not survive alongside a real ceiling.
+    assert "ASSUMED to remain the stable termination at every mu_H" not in report
+    # ... but the spin caveat must, because this ladder is non-spin-polarised.
+    assert "nspin=1, UNTESTED" in report
+    assert "too PERMISSIVE" in report
+    assert any("NO spin-polarised run exists" in w
+               for w in result["meta"]["warnings"])
+
+
+# ==================================================== bare-facet spin state
+# A bare face carries one unpaired electron per dangling bond. nspin = 2 is
+# variational over nspin = 1, so a non-spin-polarised bare energy is an UPPER
+# bound, gamma_bare is an upper bound, and the ceiling built from it is too
+# PERMISSIVE -- it claims the H-terminated surface survives to
+# hydrogen-poorer conditions than it does. That is the one direction of error
+# this bound must not fail in, and no fit diagnostic can see it.
+def _bare_points(surface, ref, nspin, layers=(10, 12, 16), plateau=5.67):
+    return _ladder_from_per_slab_gammas(
+        surface, {n: plateau for n in layers}, BARE_111_AREA, ref,
+        nspin={n: nspin.get(n, 1) for n in layers} if isinstance(nspin, dict)
+        else {n: nspin for n in layers})
+
+
+def test_pw_in_and_pw_out_spin_fields_are_read(tmp_path):
+    """nspin from the input; the magnetization from the OUTPUT, which is what
+    actually ran (CLAUDE.md invariant 7)."""
+    import parse_slab
+
+    (tmp_path / "a.in").write_text(
+        "&system\n nat=4, ntyp=1, ecutwfc=90, ecutrho=720,\n"
+        " nspin=2, starting_magnetization(1)=0.5,\n/\n")
+    pin = parse_slab.parse_pw_in(tmp_path / "a.in")
+    assert pin["nspin"] == 2 and pin["starting_magnetization"] is True
+
+    # QE defaults nspin to 1 when the card is absent; "absent" and "declared
+    # closed-shell" must read identically.
+    (tmp_path / "b.in").write_text("&system\n nat=4, ecutwfc=90,\n/\n")
+    assert parse_slab.parse_pw_in(tmp_path / "b.in")["nspin"] == 1
+    assert parse_slab.parse_pw_in(tmp_path / "b.in")["starting_magnetization"] is False
+
+    (tmp_path / "a.out").write_text(
+        "     total magnetization       =     2.00 Bohr mag/cell\n"
+        "     absolute magnetization    =     2.14 Bohr mag/cell\n"
+        "!    total energy              =    -100.5 Ry\n"
+        "     JOB DONE.\n")
+    pout = parse_slab.parse_pw_out(tmp_path / "a.out")
+    assert pout["nspin_effective"] == 2
+    assert pout["total_magnetization_bohr"] == pytest.approx(2.00)
+    assert pout["absolute_magnetization_bohr"] == pytest.approx(2.14)
+
+    (tmp_path / "b.out").write_text(
+        "!    total energy              =    -100.5 Ry\n     JOB DONE.\n")
+    pout = parse_slab.parse_pw_out(tmp_path / "b.out")
+    assert pout["nspin_effective"] == 1
+    assert pout["total_magnetization_bohr"] is None
+
+    # An incomplete run must not be claimed as closed-shell -- it may simply
+    # not have got far enough to print a magnetization.
+    (tmp_path / "c.out").write_text("     Program PWSCF starts\n")
+    assert parse_slab.parse_pw_out(tmp_path / "c.out")["nspin_effective"] is None
+
+
+def test_spin_polarised_is_taken_from_the_output_not_the_input():
+    ref = _fake_ref()
+    declared_only = se.SlabEnergy(
+        **{**_bare_points("C111", ref, 1)[0].__dict__,
+           "nspin_declared": 2, "nspin_effective": 1})
+    assert not declared_only.spin_polarised
+    ran = se.SlabEnergy(**{**declared_only.__dict__, "nspin_effective": 2})
+    assert ran.spin_polarised
+
+
+def test_a_facet_with_a_mixed_spin_ladder_is_refused():
+    """Once a spin-polarised result exists, the non-polarised energies on that
+    facet are not unvalidated -- they are known to be the wrong state."""
+    ref = _fake_ref()
+    pts = _bare_points("C111", ref, {10: 1, 12: 1, 16: 2})
+    with pytest.raises(se.SurfaceEnergyError) as exc:
+        se.check_bare_spin_states({"C111": pts})
+    msg = str(exc.value)
+    assert "spin-polarised result exists" in msg
+    assert "C111_16L" in msg and "C111_10L" in msg
+    assert "2.00" in msg                       # the magnetization is quoted
+    assert "--bare-exclude-layers-for" in msg  # and the way out is named
+
+
+def test_a_reconstruction_variant_counts_as_evidence_about_its_facet():
+    """C111pandey is the same dangling-bond chemistry as C111; a spin-polarised
+    result on one is evidence about the other."""
+    ref = _fake_ref()
+    with pytest.raises(se.SurfaceEnergyError, match="spin-polarised result exists"):
+        se.check_bare_spin_states({
+            "C111": _bare_points("C111", ref, 1),
+            "C111pandey": _bare_points("C111pandey", ref, 2,
+                                       layers=(20, 22, 24))})
+
+
+def test_a_wholly_unpolarised_facet_warns_loudly_rather_than_refusing():
+    """Refusing outright would leave no ceiling at all, which is worse than a
+    labelled one. The warning has to name the direction of the error."""
+    ref = _fake_ref()
+    warns = se.check_bare_spin_states({"C111": _bare_points("C111", ref, 1)})
+    assert len(warns) == 1
+    assert "NO spin-polarised run exists" in warns[0]
+    assert "too PERMISSIVE" in warns[0]
+    assert "C111" in warns[0]
+
+
+def test_a_fully_polarised_facet_passes_without_comment():
+    ref = _fake_ref()
+    assert se.check_bare_spin_states({"C111": _bare_points("C111", ref, 2)}) == []
+
+
+def test_declared_nspin_2_that_did_not_run_polarised_is_refused():
+    """The input says one calculation, the output shows another."""
+    ref = _fake_ref()
+    pts = [se.SlabEnergy(**{**p.__dict__, "nspin_declared": 2,
+                            "nspin_effective": 1,
+                            "total_magnetization_bohr": None})
+           for p in _bare_points("C111", ref, 1)]
+    with pytest.raises(se.SurfaceEnergyError) as exc:
+        se.check_bare_spin_states({"C111": pts})
+    assert "declare nspin = 2" in str(exc.value)
+    assert "invariant 7" in str(exc.value)
+
+
+def test_an_unexpected_magnetization_warns():
+    """2.00 Bohr mag/cell is one unpaired electron per dangling bond on each of
+    two faces. Something else means the structure or the state is not what was
+    assumed -- (100) quenching by dimerisation would read as 0.00, which is a
+    legitimate answer, not an anomaly."""
+    ref = _fake_ref()
+    pts = _bare_points("C111", ref, 2)
+    odd = [se.SlabEnergy(**{**p.__dict__, "total_magnetization_bohr": 1.37})
+           for p in pts]
+    warns = se.check_bare_spin_states({"C111": odd})
+    assert len(warns) == 1 and "not the 2.0 expected" in warns[0]
+
+    quenched = [se.SlabEnergy(**{**p.__dict__, "total_magnetization_bohr": 0.0})
+                for p in pts]
+    assert se.check_bare_spin_states({"C100": quenched}) == []
+
+
+def test_spin_audit_reports_per_facet_not_per_variant():
+    ref = _fake_ref()
+    audit = se.spin_audit({
+        "C111": _bare_points("C111", ref, 2),
+        "C111pandey": _bare_points("C111pandey", ref, 2, layers=(20, 22, 24)),
+        "C100": _bare_points("C100", ref, 1)})
+    assert set(audit) == {"C111", "C100"}
+    assert audit["C111"]["variants"] == ["C111", "C111pandey"]
+    assert audit["C111"]["has_polarised_reference"]
+    assert not audit["C111"]["mixed"]
+    assert not audit["C100"]["has_polarised_reference"]
+    assert len(audit["C111"]["polarised"]) == 6
+
+
+# ============================================ E_s and the ceiling correction
+def _spin_pair(surface, ref, layers, e_s_ev, n_db, mag, area=BARE_111_AREA,
+               plateau=5.67, per_layer=1):
+    """A non-polarised ladder and its polarised counterpart, built so that
+    E(nspin=1) - E(nspin=2) = n_db * e_s_ev on every rung."""
+    nsp = _ladder_from_per_slab_gammas(
+        surface, {n: plateau for n in layers}, area, ref,
+        per_layer=per_layer, nspin={n: 1 for n in layers})
+    sp = [se.SlabEnergy(**{**p.__dict__,
+                           "energy_ry": p.energy_ry - n_db * e_s_ev / se.RY_TO_EV,
+                           "nspin_declared": 2, "nspin_effective": 2,
+                           "total_magnetization_bohr": mag})
+          for p in nsp]
+    return nsp, sp
+
+
+def test_e_s_is_the_pair_difference_over_the_dangling_bond_count():
+    ref = _fake_ref()
+    nsp, sp = _spin_pair("C111", ref, (12, 16), e_s_ev=0.31, n_db=2, mag=2.0)
+    st = se.measure_spin_stabilisation(nsp, sp, 2)
+    assert st.thicknesses == [12, 16]
+    assert st.e_s_ev == pytest.approx(0.31, abs=1e-9)
+    assert st.spread_ev == pytest.approx(0.0, abs=1e-9)
+    assert st.identity_applies and not st.quenched
+
+
+def test_the_ceiling_drops_by_exactly_e_s_on_every_facet():
+    """The identity. Area, coverage and thickness all cancel, so a facet with
+    twice the area and twice the coverage takes the SAME shift in eV."""
+    E_S = 0.31
+    facets = {                       # surface: (area, N_H per cell)
+        "C100": (12.7663, 4), "C110": (9.0271, 4), "C111": (5.5280, 2)}
+    shifts, d_gammas = {}, {}
+    for s, (area, n_H) in facets.items():
+        slope = n_H / (2 * area) * se.EV_PER_A2_TO_J_PER_M2
+        h = _fit_with(s, -0.5, slope)
+        n_db = n_H                                  # one H caps one dangling bond
+        # gamma_bare falls by n_db*E_s over both faces, i.e. per face over 2A.
+        d_gamma = n_db * E_S / (2 * area) * se.EV_PER_A2_TO_J_PER_M2
+        d_gammas[s] = d_gamma
+        bare_hi = _fit_with(s, 5.67, 0.0)
+        bare_lo = _fit_with(s, 5.67 - d_gamma, 0.0)
+        for b in (bare_hi, bare_lo):
+            b.n_H = 0
+        hi = se.dehydrogenation_bound([h], [bare_hi])["per_surface"][s]
+        lo = se.dehydrogenation_bound([h], [bare_lo])["per_surface"][s]
+        shifts[s] = hi["delta_mu_max_ev"] - lo["delta_mu_max_ev"]
+    # The gamma_bare shifts differ between facets...
+    assert len({round(v, 4) for v in d_gammas.values()}) == 3
+    # ... and the ceiling shifts do not: every one is E_s.
+    for s, v in shifts.items():
+        assert v == pytest.approx(E_S, abs=1e-9), s
+
+
+def test_apply_spin_correction_reports_both_ceilings():
+    ref = _fake_ref()
+    h = _fit_with("C111", -0.9761, 2.8983)
+    bare = _fit_with("C111", 5.67, 0.0)
+    bare.n_H = 0
+    bound = se.dehydrogenation_bound([h], [bare])
+    before = bound["per_surface"]["C111"]["delta_mu_max_ev"]
+    nsp, sp = _spin_pair("C111", ref, (12, 16), e_s_ev=0.31, n_db=2, mag=2.0)
+    st = se.measure_spin_stabilisation(nsp, sp, 2)
+    se.apply_spin_correction(bound, {"C111": st})
+    e = bound["per_surface"]["C111"]
+    assert e["spin_correction_applied"]
+    assert e["delta_mu_max_uncorrected_ev"] == pytest.approx(before)
+    assert e["delta_mu_max_ev"] == pytest.approx(before - 0.31)
+    assert bound["delta_mu_max_uncorrected_ev"] == pytest.approx(before)
+    assert bound["delta_mu_max_ev"] == pytest.approx(before - 0.31)
+
+
+def test_a_quenched_face_takes_no_correction():
+    """M = 0 means the dangling bonds are gone -- the expected answer for a
+    dimerised (100), and the decisive one for (110)."""
+    ref = _fake_ref()
+    nsp, sp = _spin_pair("C100", ref, (12, 16), e_s_ev=0.0, n_db=4, mag=0.0,
+                         area=12.7663, per_layer=2)
+    st = se.measure_spin_stabilisation(nsp, sp, 4)
+    assert st.quenched and not st.identity_applies
+    assert st.e_s_ev == pytest.approx(0.0, abs=1e-9)
+    assert "quenched" in st.reason
+
+    h = _fit_with("C100", 0.0501, 2.5100)
+    bare = _fit_with("C100", 4.5, 0.0)
+    bare.n_H = 0
+    bound = se.dehydrogenation_bound([h], [bare])
+    before = bound["per_surface"]["C100"]["delta_mu_max_ev"]
+    se.apply_spin_correction(bound, {"C100": st})
+    assert bound["per_surface"]["C100"]["delta_mu_max_ev"] == pytest.approx(before)
+
+
+def test_a_partially_quenched_face_reports_e_s_but_withholds_it():
+    """Between 0 and n_DB the cancellation is no longer exact, so the number is
+    shown and not used."""
+    ref = _fake_ref()
+    nsp, sp = _spin_pair("C110", ref, (12, 16), e_s_ev=0.25, n_db=4, mag=1.7,
+                         area=9.0271, per_layer=2)
+    st = se.measure_spin_stabilisation(nsp, sp, 4)
+    assert not st.identity_applies and not st.quenched
+    assert st.e_s_ev == pytest.approx(0.25, abs=1e-9)
+    assert "PARTIALLY" in st.reason
+
+    h = _fit_with("C110", -0.8265, 3.5497)
+    bare = _fit_with("C110", 5.162, 0.0)
+    bare.n_H = 0
+    bound = se.dehydrogenation_bound([h], [bare])
+    before = bound["per_surface"]["C110"]["delta_mu_max_ev"]
+    se.apply_spin_correction(bound, {"C110": st})
+    e = bound["per_surface"]["C110"]
+    assert not e["spin_correction_applied"]
+    assert e["delta_mu_max_ev"] == pytest.approx(before)
+    assert e["e_s_ev"] == pytest.approx(0.25)
+
+
+def test_e_s_refuses_to_pair_across_thicknesses():
+    """A cross-thickness difference folds the bulk term back in -- exactly what
+    the pairing exists to cancel."""
+    ref = _fake_ref()
+    nsp, _ = _spin_pair("C111", ref, (10, 12), e_s_ev=0.3, n_db=2, mag=2.0)
+    _, sp = _spin_pair("C111", ref, (16, 20), e_s_ev=0.3, n_db=2, mag=2.0)
+    with pytest.raises(se.SurfaceEnergyError, match="cannot be taken across"):
+        se.measure_spin_stabilisation(nsp, sp, 2)
+
+
+def test_a_polarised_run_above_its_unpolarised_partner_is_refused():
+    """nspin=2 is variational over nspin=1; the reverse cannot happen."""
+    ref = _fake_ref()
+    nsp, sp = _spin_pair("C111", ref, (12, 16), e_s_ev=-0.2, n_db=2, mag=2.0)
+    with pytest.raises(se.SurfaceEnergyError, match="variational"):
+        se.measure_spin_stabilisation(nsp, sp, 2)
+
+
+def test_a_mismatched_pair_is_refused():
+    ref = _fake_ref()
+    nsp, sp = _spin_pair("C111", ref, (12, 16), e_s_ev=0.3, n_db=2, mag=2.0)
+    sp = [se.SlabEnergy(**{**sp[0].__dict__, "n_C": 99})] + sp[1:]
+    with pytest.raises(se.SurfaceEnergyError, match="differ in cell"):
+        se.measure_spin_stabilisation(nsp, sp, 2)
+
+
+@production
+def test_run_measures_e_s_and_corrects_the_ceiling(tmp_path, monkeypatch):
+    """End to end: a non-polarised bare ladder plus a polarised pair at two
+    thicknesses gives a corrected ceiling exactly E_s below the raw one."""
+    ref_probe = se.load_references(REFERENCE)
+    bare_dir, spin_dir = tmp_path / "bare", tmp_path / "spin"
+    bare_dir.mkdir()
+    spin_dir.mkdir()
+    E_S = 0.31
+
+    nsp = _ladder_from_per_slab_gammas(
+        "C111", {10: 5.68, 12: 5.68, 16: 5.67}, BARE_111_AREA, ref_probe,
+        match_ref=True, nspin={10: 1, 12: 1, 16: 1})
+    sp = [se.SlabEnergy(**{**p.__dict__,
+                           "energy_ry": p.energy_ry - 2 * E_S / se.RY_TO_EV,
+                           "nspin_declared": 2, "nspin_effective": 2,
+                           "total_magnetization_bohr": 2.0})
+          for p in nsp if p.layers in (12, 16)]
+
+    real_loader = se.load_slab_energies
+
+    def fake_loader(runs_dir, prefix):
+        if str(runs_dir) == str(bare_dir):
+            return {"C111": nsp}
+        if str(runs_dir) == str(spin_dir):
+            return {"C111": sp}
+        return real_loader(runs_dir, prefix)
+
+    monkeypatch.setattr(se, "load_slab_energies", fake_loader)
+    result = se.run(PRODUCTION, REFERENCE, tmp_path / "out", se.DEFAULT_PREFIX,
+                    [6], (0.0, 3.0), 21, se.DEFAULT_MU_C_TOL_MRY,
+                    bare_runs_dir=bare_dir, bare_spin_runs_dir=spin_dir,
+                    bare_exclude_layers=[])
+    bound = result["dehydrogenation_bound"]
+    e = bound["per_surface"]["C111"]
+    assert e["spin_correction_applied"]
+    assert e["e_s_ev"] == pytest.approx(E_S, abs=1e-6)
+    assert e["e_s_n_db_per_cell"] == 2          # read from the H facet's N_H
+    assert e["e_s_thicknesses"] == [12, 16]
+    assert e["delta_mu_max_ev"] == pytest.approx(
+        e["delta_mu_max_uncorrected_ev"] - E_S, abs=1e-6)
+
+    report = (tmp_path / "out" / "surface_energy_report.md").read_text()
+    assert "d(delta_mu_max) = E_s" in report
+    assert "unreconstructed 1x1" in report
+    assert "Pandey" in report and "dimerised (100)" in report
+    assert "ceiling before (eV)" in report
+    # The "too permissive, untested" caveat must go once E_s is measured.
+    assert "nspin=1, UNTESTED" not in report

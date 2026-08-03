@@ -20,6 +20,20 @@ Epistemic level is per surface (see the table); it is not uniform.
 
 gamma in J/m^2; dgamma/d(-mu_H) in (J/m^2)/eV; N_H/2A in Angstrom^-2. `scatter` is the spread of the per-slab gamma across the fitted ladder using the independent bulk mu_C, and is the honest uncertainty on each number.
 
+## Which thicknesses entered each fit
+
+Exclusions are per surface, not global. A fit is REJECTED outright -- nothing written, not a warning -- when the mu_C drift biases gamma by more than 0.100 J/m^2, since a biased gamma is a different number rather than a noisier one. The bias column below is exact: it is gamma from the Boettger fit minus the mean per-slab gamma taken with the independent bulk mu_C.
+
+| surface | ladder | used | dropped | why dropped | gamma bias from mu_C drift |
+| --- | --- | --- | --- | --- | ---: |
+| (100) | 6L 8L 10L 12L 16L | 8L 10L 12L 16L | 6L | campaign default (6L) | +0.0103 J/m^2 |
+| (110) | 6L 8L 10L 12L 16L | 8L 10L 12L 16L | 6L | campaign default (6L) | -0.0005 J/m^2 |
+| (111) | 6L 8L 10L 12L 16L | 8L 10L 12L 16L | 6L | campaign default (6L) | -0.0007 J/m^2 |
+
+## Dehydrogenation ceiling on delta_mu
+
+**MISSING.** no bare-facet ladder found. gamma_H(mu_H) is therefore unbounded above in this model and every hydrogen-poor statement is an extrapolation with no stop. Generate the campaign with make_bare_slabs.py and rerun with --bare-runs-dir.
+
 ## Dependence on mu_H
 
 Lowering mu_H below the H-rich limit raises every gamma, at a rate set by that facet's hydrogen coverage N_H/2A. Because the rates differ, the stability ORDERING is a function of mu_H, not a fixed fact.
@@ -131,6 +145,6 @@ Zero-point energy is EXCLUDED. gamma was derived from DFT total energies with no
 
 ## Warnings
 
-* C100: fitted mu_C = -18.434129349 Ry drifts -0.0524 mRy from the bulk reference -18.434076958 Ry. The slab interior is not perfectly bulk-like, or the ladder is not in the asymptotic regime. gamma for this surface is downgraded to L1; per-slab scatter is 0.0241 J/m^2.
+* C100: fitted mu_C = -18.434129349 Ry drifts -0.0524 mRy from the bulk reference -18.434076958 Ry. The slab interior is not perfectly bulk-like, or the ladder is not in the asymptotic regime. gamma for this surface is downgraded to L1; per-slab scatter is 0.0241 J/m^2 and the drift biases gamma by +0.0103 J/m^2 (budget 0.100).
 * dehydrogenation bound MISSING: no bare-facet ladder found. gamma_H(mu_H) is therefore unbounded above in this model and every hydrogen-poor statement is an extrapolation with no stop. Generate the campaign with make_bare_slabs.py and rerun with --bare-runs-dir.
 

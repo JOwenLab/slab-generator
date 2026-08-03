@@ -3,12 +3,17 @@
 plot_surface_stress.py - The surface-stress result figures.
 
 Companion to plot_convergence.py, which establishes the production standard.
-These four carry the physics that standard was built to support.
+These carry the physics that standard was built to support.
 
-    N1  tau_infinity per facet                (single column)
-    N2  surface energy vs anisotropy          (single column)
     N3  energy convergence is not stress      (single column)
     N4  vc-relax lattice distortion           (single column)
+
+    N1  RETIRED -- absorbed into F1(b) of plot_h_results.py
+    N2  RETIRED -- its premise is false; see RETIRED_NOTE below
+
+N1 and N2 are no longer built. The code that drew them is kept, unreferenced,
+so the retirement is auditable rather than a deletion in the history; see
+RETIRED_NOTE.
 
 Styling is shared with the convergence set through figstyle.py, so a reader
 sees one figure set: same typography, same Okabe-Ito colour and marker per
@@ -81,6 +86,28 @@ CONVERGENCE_CSV = Path("results/convergence/convergence_summary.csv")
 SURFACE_ENERGY_CSV = PRODUCTION_DIR / "surface_energy.csv"
 BULK_FIT_JSON = Path("results/reference_90_720/bulk_fit_summary.json")
 H2_OUT = Path("results/reference_90_720/H2/pw.out")
+
+# Printed on every run so the retirement cannot be mistaken for a bug or a
+# missing input. Both figures still have live callers in tests, so the drawing
+# functions stay; what changed is that nothing builds them into results/.
+RETIRED_NOTE = (
+    "N1 and N2 are RETIRED and are not built.\n"
+    "  N1 (tau_infinity per facet) is absorbed into F1(b) of "
+    "plot_h_results.py, which draws the same quantity with its crystallographic "
+    "axes labelled.\n"
+    "  N2 (surface energy vs |tau_aniso|) is deleted because its premise is "
+    "false. It asserted that the (100) in-plane anisotropy drives the "
+    "transverse NV splitting E. nv_local_strain.py shows E is produced by the "
+    "edge-concentrated deviatoric field instead: zeroing the (100) anisotropy "
+    "while preserving its mean leaves 54% of E on a {100} cube. A figure "
+    "asserting something the later work contradicts is worse than no figure.\n"
+    "  Their stale outputs under results/figures/surface-stress/ are removed "
+    "by this run."
+)
+
+# Written by earlier versions of this script; deleted rather than left to rot,
+# since a stale figN2 on disk is indistinguishable from a current one.
+RETIRED_STEMS = ("figN1_tau_infinity", "figN2_gamma_anisotropy")
 
 VCRELAX_RE = re.compile(r"^vcrelax~(?P<surface>C\d{3})_(?P<layers>\d+)L$")
 STRESS_RUN_RE = re.compile(
@@ -840,7 +867,8 @@ def figure_vcrelax(by_surface, exclude_layers=(6,)):
             f"carries an anisotropy without a sign change. ")
     caption += (
         f"These relaxations also fix the sign of tau independently of any "
-        f"convention: every axis carrying positive tau in Figure N1 expands "
+        f"convention: every axis carrying positive tau_infinity (F1(b), or "
+        f"tau_infinity.csv directly) expands "
         f"here and the one carrying negative tau contracts, so positive tau is "
         f"a compressive surface stress pushing the lattice outward. "
         f"Strains are relative to each slab's own starting cell at the "
@@ -862,6 +890,9 @@ def detex(s):
 
 
 TITLES = {
+    # N1 and N2 are RETIRED (see RETIRED_NOTE) and never reach `captions`, so
+    # these two entries are inert. They are kept so the numbering a reader
+    # meets in older drafts still resolves to a name.
     "figN1_tau_infinity": "Figure N1 - Surface stress per facet",
     "figN2_gamma_anisotropy": "Figure N2 - Surface energy versus anisotropy",
     "figN3_energy_vs_stress": "Figure N3 - Energy convergence is not stress convergence",
@@ -921,14 +952,7 @@ def main():
           f"{', '.join(sorted(cutoff))}.\n")
 
     builders = []
-    if tau:
-        builders.append(("figN1_tau_infinity",
-                         lambda: figure_tau_infinity(tau)))
-        if gammas:
-            builders.append(("figN2_gamma_anisotropy",
-                             lambda: figure_gamma_vs_anisotropy(tau, gammas)))
-        else:
-            print("SKIPPED N2: surface energies unavailable.")
+    print(RETIRED_NOTE)
     builders.append(("figN3_energy_vs_stress",
                      lambda: figure_energy_vs_stress_convergence(cutoff)))
     if vc:
@@ -936,11 +960,13 @@ def main():
     else:
         print("SKIPPED N4: no vc-relax runs found.")
 
-    for stem, _ in builders:
+    for stem in [s for s, _ in builders] + list(RETIRED_STEMS):
         for suffix in (".pdf", ".png", "_annotated.pdf"):
             path = outdir / f"{stem}{suffix}"
             if path.exists():
                 path.unlink()
+                if stem in RETIRED_STEMS:
+                    print(f"  removed retired {path.name}")
     (outdir / "CAPTIONS.md").unlink(missing_ok=True)
 
     captions = {}
@@ -975,6 +1001,9 @@ def main():
         lines += [f"## {TITLES[stem]}", "", detex(captions[stem]), "",
                   f"Files: `{stem}.pdf`, `{stem}.png` (600 dpi), "
                   f"`{stem}_annotated.pdf`", ""]
+    lines += ["## Retired figures", ""]
+    lines += [ln for ln in RETIRED_NOTE.replace("\n  ", "\n- ").split("\n")]
+    lines.append("")
     (outdir / "CAPTIONS.md").write_text("\n".join(lines))
     print("  CAPTIONS.md")
     print(f"\nWrote {outdir}")

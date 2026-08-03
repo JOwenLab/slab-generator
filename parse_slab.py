@@ -104,6 +104,14 @@ def parse_pw_in(path):
     d["ecutrho"] = first(r"\becutrho\s*=\s*(" + _NUM + r")", float)
     d["occupations"] = first(r"occupations\s*=\s*'([^']+)'")
 
+    # Spin. QE defaults to nspin = 1 when the card is absent, so "not declared"
+    # and "declared closed-shell" are the same input and must read the same
+    # here. Whether that default was CORRECT is a physics question the caller
+    # has to answer -- see nspin_effective in parse_pw_out for what actually ran.
+    d["nspin"] = first(r"\bnspin\s*=\s*(\d+)", int) or 1
+    d["starting_magnetization"] = bool(
+        re.search(r"\bstarting_magnetization", text, re.IGNORECASE))
+
     m = re.search(r"K_POINTS\s+automatic\s*\n\s*(\d+)\s+(\d+)\s+(\d+)", text, re.IGNORECASE)
     if m:
         d["kpoints"] = f"{m.group(1)} {m.group(2)} {m.group(3)}"
@@ -130,6 +138,8 @@ def parse_pw_out(path):
         "scf_iterations": None, "ionic_steps": None, "wall_time": None,
         "final_cell_ang": None, "final_positions_ang": [], "warnings": [], "errors": [],
         "pseudo_files": {}, "relax_converged": None,
+        "nspin_effective": None, "total_magnetization_bohr": None,
+        "absolute_magnetization_bohr": None,
     }
 
     if "JOB DONE" in text:
@@ -146,6 +156,26 @@ def parse_pw_out(path):
         if fname.startswith("./"):
             fname = fname[2:]
         d["pseudo_files"][sym] = fname
+
+    # Spin as it actually ran, not as declared. QE prints "total magnetization"
+    # / "absolute magnetization" only for nspin = 2, so their presence is the
+    # ground truth for whether the run was spin-polarised at all -- the same
+    # reasoning as PseudoPot above (CLAUDE.md invariant 7). A stale or
+    # regenerated pw.in cannot fake these lines.
+    tot_mag = re.findall(
+        r"total magnetization\s*=\s*(" + _NUM + r")\s*Bohr mag/cell", text)
+    abs_mag = re.findall(
+        r"absolute magnetization\s*=\s*(" + _NUM + r")\s*Bohr mag/cell", text)
+    if tot_mag:
+        d["total_magnetization_bohr"] = float(tot_mag[-1])
+    if abs_mag:
+        d["absolute_magnetization_bohr"] = float(abs_mag[-1])
+    if tot_mag or abs_mag or re.search(r"\bSPIN\s+(UP|DOWN)\b", text):
+        d["nspin_effective"] = 2
+    elif d["complete"]:
+        # Only claim "this was closed-shell" for a run that got far enough to
+        # have printed the magnetization had there been any.
+        d["nspin_effective"] = 1
 
     energies = re.findall(r"!\s+total energy\s*=\s*(" + _NUM + r")\s*Ry", text)
     if energies:
