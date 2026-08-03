@@ -1057,6 +1057,22 @@ def main(argv=None):
                             f"{b['sigma_dev_median_gpa']:.5f}",
                             f"{b['edge_dist_median_nm']:.4f}",
                             EPISTEMIC_LEVEL])
+    with (out / "nv_local_strain_odmr.csv").open("w", newline="") as fh:
+        w = _csv.writer(fh)
+        w.writerow(["shape", "radius_nm", "refine", "dark_layer_nm", "n_sites",
+                    "E_median_mhz", "E_p90_mhz", "E_p90_over_median",
+                    "strain_fwhm_mhz", "frac_2E_over_linewidth",
+                    "dD_median_mhz", "linewidth_ref_mhz", "epistemic_level"])
+        for row in odmr:
+            w.writerow([row["shape"], args.radius_nm, args.refine,
+                        row["dead_layer_nm"], row["n_sites"],
+                        f"{row['E_median_mhz']:.4f}", f"{row['E_p90_mhz']:.4f}",
+                        f"{row['E_p90_over_median']:.4f}",
+                        f"{row['fwhm_mhz']:.4f}",
+                        f"{row['frac_resolvably_split']:.4f}",
+                        f"{row['dD_median_mhz']:.4f}",
+                        LINEWIDTH_MHZ, EPISTEMIC_LEVEL])
+    print(f"wrote {out/'nv_local_strain_odmr.csv'}")
     print(f"wrote {out/'nv_local_strain_report.md'}")
     print(f"wrote {out/'nv_local_strain_depth.csv'}")
     print(verdict)

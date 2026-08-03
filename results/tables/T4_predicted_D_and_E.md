@@ -1,0 +1,27 @@
+# Table T4 - Predicted D and E per habit at R = 1.5 nm
+
+| quantity                                            | cube {100} | rh. dodec. {110} | octahedron {111} |                      Wulff mixture |
+| --------------------------------------------------- | ---------: | ---------------: | ---------------: | ---------------------------------: |
+| facet area fractions                                | {100} 1.00 |       {110} 1.00 |       {111} 1.00 | {100} 0.16, {110} 0.39, {111} 0.45 |
+| interior P (GPa, + = compressive)                   |     +2.661 |           -4.361 |           -0.644 |                             -1.539 |
+| lattice strain (%)                                  |     -0.201 |           +0.329 |           +0.049 |                             +0.116 |
+| lattice parameter a (A)                             |     3.5658 |           3.5847 |           3.5747 |                             3.5771 |
+| Delta D (MHz), udvarhelyi2018_dft                   |      +21.2 |            -34.7 |             -5.1 |                              -12.2 |
+| Delta D (MHz), barson2017_scaled                    |      +35.0 |            -57.3 |             -8.5 |                              -20.2 |
+| E from the volume-averaged strain (MHz)             |      0.000 |            0.000 |            0.000 |                              0.000 |
+| median \|E(x)\| (MHz) at depth 0.5 nm               |      16.07 |             8.89 |             1.98 |                              13.27 |
+| median \|E(x)\| (MHz) at depth 1.0 nm               |       5.39 |             1.40 |             0.62 |                               4.62 |
+| median \|E(x)\| (MHz) at depth 1.5 nm               |       1.26 |             0.10 |             0.03 |                               0.95 |
+| ODMR FWHM (MHz), dark layer 0.5 nm                  |       37.8 |              2.8 |              4.6 |                               19.2 |
+| ODMR FWHM (MHz), dark layer 1.0 nm                  |       17.5 |              1.8 |              1.1 |                                9.9 |
+| fraction with 2\|E\| > linewidth, dark layer 0.5 nm |       0.97 |             0.82 |             0.36 |                               0.95 |
+| fraction with 2\|E\| > linewidth, dark layer 1.0 nm |       0.88 |             0.12 |             0.00 |                               0.73 |
+
+**Table T4.** Predicted NV shifts for each habit at R = 1.5 nm. The first three quantities are COUPLING-FREE: interior pressure, lattice strain and lattice parameter follow from tau and the elastic tensor alone, so none of the spin-strain uncertainty touches them, and the lattice parameter is directly measurable by size-resolved XRD. Everything below them is not. Delta D is given once per published coupling set rather than as a single number with an error bar, because the two sets differ by a factor of 1.65 on the axial channel for identical strain and that disagreement, not statistics, is the dominant uncertainty. The two E rows say different things and the difference is the substantive result: E evaluated at the VOLUME-AVERAGED strain is identically zero for every symmetry-complete habit, because that average is hydrostatic; the median |E(x)| is non-zero because the field resolved in position is not, being concentrated at the particle edges. An ensemble therefore sees inhomogeneous BROADENING rather than a resolved splitting, which is what the FWHM rows quantify against a 3 MHz reference linewidth. The dark-layer rows are an assumption about where NVs are optically active, not a result: halving it from 1.0 to 0.5 nm moves the width by a factor of 2-4, more than most of the physics in this table. All quantities scale as 1/R away from this radius (P, strain and Delta D exactly; |E| and the widths only approximately, since the edge-to-interior geometry does not rescale exactly), so a 3 nm particle halves every number here. Epistemic level L1 throughout: the facet tau are L2 but the continuum body, the literature elastic tensor, the literature couplings and the assumed depth distribution are not.
+
+
+- Elastic constants C11/C12/C44 = 1076/125/576 GPa are LITERATURE values, not fitted in this project. Source: Diamond cubic stiffness constants as used by Udvarhelyi, Shkolnikov, Gali, Burkard & Palyi, Phys. Rev. B 98, 075201 (2018), attributed therein to E. Kaxiras, Atomic and Electronic Structure of Solids (Cambridge University Press, 2003).
+- udvarhelyi2018_dft: Udvarhelyi et al., PRB 98, 075201 (2018), Table I
+- barson2017_scaled: Udvarhelyi tensor rescaled to Barson et al., Nano Lett. 17, 1496 (2017) axial/transverse magnitudes
+- Delta D depends only on h41 and h43; E only on h15 and h16. A hydrostatic-pressure ODMR calibration constrains the former and says nothing about the latter, so E carries strictly more uncertainty than Delta D.
+- Positive interior P is compressive (CLAUDE.md sec 2).
