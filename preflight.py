@@ -52,6 +52,8 @@ from pathlib import Path
 
 import numpy as np
 
+import parse_convergence
+
 # ── Physical bounds ───────────────────────────────────────────────────────────
 # Bonded if within the cutoff. C-C is 1.545 in bulk diamond and ~1.60 across a
 # (100) 2x1 dimer, so 1.85 separates bonded from the 2.53 second shell.
@@ -498,22 +500,29 @@ def check_name_matches_geometry(s):
     return bad
 
 
-def _count_carbon_layers(s, tol=0.25):
+def _count_carbon_layers(s):
     """
-    Distinct carbon z-levels.
+    Number of distinct carbon layers, delegated to parse_convergence.
 
-    tol must exceed the (100) 2x1 dimer buckling (~0.08 A) and stay below the
-    (111) intra-bilayer spacing (~0.49 A), or (111) slabs report half their
-    true layer count.
+    DELIBERATELY NOT REIMPLEMENTED HERE. This gate previously carried its own
+    copy that clustered on a fixed 0.25 A tolerance, which is not sufficient
+    and cannot be made sufficient: (100)'s 0.292 A intra-layer buckling is
+    wider than (111)'s 0.488 A inter-layer split is narrow, so no single
+    distance classifies both. The consequence was 16 false failures across
+    results/slabs/, every one reporting a 6-layer (100) slab as 8 layers.
+
+    parse_convergence.count_layers was fixed by adding a counting invariant on
+    top of the clustering (every layer of a slab holds the same number of
+    symmetry-equivalent sites, so unequal cluster populations prove the
+    clustering split a layer). That fix did not reach this file, which is the
+    whole reason the two drifted. Importing it means they cannot drift again:
+    there is one implementation and one set of tests for it.
+
+    A gate that emits false failures on good structures is worse than no gate,
+    because the failures get waived and then a real one is waived with them.
     """
-    z = sorted(float(v) for v in s.carbon_z)
-    if not z:
-        return 0
-    layers = 1
-    for a, b in zip(z, z[1:]):
-        if b - a > tol:
-            layers += 1
-    return layers
+    return parse_convergence.count_layers(
+        [float(v) for v in s.carbon_z]) or 0
 
 
 DIPOLE_KEYS = ("dipfield", "tefield", "assume_isolated")

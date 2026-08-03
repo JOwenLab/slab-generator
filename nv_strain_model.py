@@ -796,28 +796,63 @@ def write_report(records, path, ref_data, d_shift_const, e_split_const):
         "",
     ]
 
-    # ── 8. Calibration placeholder ───────────────────────────────────────────
+    # ── 8. Coupling constants actually used ──────────────────────────────────
+    #
+    # This block used to print a fixed `null` template regardless of what was
+    # supplied, while the summary CSV alongside it carried GHz columns computed
+    # from non-null constants. The report therefore contradicted its own
+    # numbers, and nothing recorded the values that produced them: recovering
+    # them meant dividing a GHz column by a strain column. It now reports what
+    # was in effect for this run.
     lines += [
-        "## 8. Calibration Fields (for future use)",
+        "## 8. Spin-Strain Coupling Constants Used In This Run",
         "",
-        "The fields below are reserved for future calibration once explicit NV "
-        "supercell calculations or experimental resonance data become available:",
-        "",
-        "```json",
-        '{',
-        '  "d_shift_ghz_per_strain": null,',
-        '  "e_split_ghz_per_strain": null,',
-        '  "calibration_source": null,',
-        '  "calibration_date": null',
-        '}',
-        "```",
-        "",
-        "Pass these as CLI arguments to activate GHz estimates:",
-        "```",
-        "python3 nv_strain_model.py \\",
-        "    --d-shift-ghz-per-strain 13.0 \\",
-        "    --e-splitting-ghz-per-strain 5.0",
-        "```",
+    ]
+    if d_shift_const is None and e_split_const is None:
+        lines += [
+            "**None supplied**, so `estimated_delta_D_GHz` and `estimated_E_GHz` "
+            "are empty in the outputs. The risk scores and the ranking do not "
+            "depend on them (they use magnitudes only).",
+            "",
+            "Pass them as CLI arguments to activate the GHz estimates. The "
+            "provisional values used for the committed artifacts are in "
+            "CLAUDE.md section 3 and in `regenerate.sh`:",
+            "```",
+            "python3 nv_strain_model.py \\",
+            "    --d-shift-ghz-per-strain 13 \\",
+            "    --e-splitting-ghz-per-strain 5",
+            "```",
+            "",
+        ]
+    else:
+        lines += [
+            "These are the values that produced every GHz number in this "
+            "report and in `nv_strain_summary.{csv,json}`. They are "
+            "**provisional** (CLAUDE.md section 3): order-of-magnitude "
+            "literature figures, not calibrated for this system, and not "
+            "derived from any calculation in this repository.",
+            "",
+            "```json",
+            "{",
+            f'  "d_shift_ghz_per_strain": {json.dumps(d_shift_const)},',
+            f'  "e_split_ghz_per_strain": {json.dumps(e_split_const)},',
+            '  "source": "provisional literature order-of-magnitude values; '
+            'see CLAUDE.md section 3",',
+            '  "calibrated": false',
+            "}",
+            "```",
+            "",
+            "Regenerate this exact output with:",
+            "```",
+            "python3 nv_strain_model.py \\",
+            f"    --d-shift-ghz-per-strain {d_shift_const} \\",
+            f"    --e-splitting-ghz-per-strain {e_split_const}",
+            "```",
+            "",
+        ]
+    lines += [
+        "Calibration against explicit NV supercell calculations or "
+        "experimental resonance data has not been done.",
         "",
     ]
 

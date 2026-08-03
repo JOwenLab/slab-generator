@@ -4,7 +4,7 @@
 
 ## The prediction
 
-The equilibrium (Wulff) habit is a function of the hydrogen chemical potential. Lowering mu_H raises every surface energy, but at facet-dependent rates, so the {100} area fraction grows. (100)-H carries a net COMPRESSIVE surface stress while (111)-H carries a tensile one, so growing the {100} fraction drives the particle interior from tension towards compression -- and through zero.
+The equilibrium (Wulff) habit is a function of the hydrogen chemical potential. Lowering mu_H raises every surface energy, but at facet-dependent rates, so the {100} area fraction grows. (100)-H carries a net TENSILE surface stress (f = +2.0 N/m) while (111)-H carries a compressive one (f = -0.48 N/m), so growing the {100} fraction drives the particle interior from tension towards compression -- and through zero.
 
 At the crossing the ODMR shift changes sign: Delta D passes through zero and reverses. That is a far sharper experimental signature than any single magnitude this model produces, because it does not depend on the spin-strain coupling set, on the particle radius, or on the absolute size of tau -- only on the shape at which the two facet contributions balance.
 

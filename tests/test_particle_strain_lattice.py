@@ -121,6 +121,35 @@ def test_facet_lattice_directions_reports_the_100_split():
     assert dirs["111"]["da_d_inverse_radius_angstrom_nm"] > 0
 
 
+@pytest.mark.skipif(not os.path.isfile(TAU_CSV), reason="tau_infinity.csv absent")
+def test_prose_adjectives_match_the_committed_tau_signs():
+    """
+    The sign-change narrative names which facet is tensile and which is
+    compressive. Those adjectives were inverted for several commits while the
+    conclusion they supported stayed correct, so nothing caught it. Pin them to
+    the data.
+    """
+    import csv as _csv
+    proj = {}
+    with open(TAU_CSV, newline="") as fh:
+        for row in _csv.DictReader(fh):
+            proj[row["surface"][1:]] = 0.5 * (float(row["tau_xx_inf_n_per_m"])
+                                              + float(row["tau_yy_inf_n_per_m"]))
+    # continuum f = -tau_project; positive f is tensile
+    f = {k: -v for k, v in proj.items()}
+    assert f["100"] > 0, "(100) must be TENSILE in the continuum sense"
+    assert f["111"] < 0, "(111) must be COMPRESSIVE in the continuum sense"
+
+    src = open(os.path.join(REPO, "particle_strain.py")).read()
+    assert "(100) facets\n# carry a net TENSILE" in src or \
+           "carry a net TENSILE surface stress while (111)" in src, \
+        "the module comment no longer matches the data"
+    assert "carries a net TENSILE surface stress (f = +2.0 N/m) while (111)-H" in src, \
+        "the report prose no longer matches the data"
+    assert "(100)-H carries a net COMPRESSIVE" not in src, \
+        "the inverted adjective pair is back"
+
+
 def test_size_sweep_is_exactly_linear_in_inverse_radius():
     """The prediction's SHAPE is what a size-resolved series tests."""
     radii = [1.0, 2.0, 4.0, 8.0]
